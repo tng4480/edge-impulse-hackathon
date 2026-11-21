@@ -4,6 +4,7 @@ Scored here: respiratory rate, SpO2 (scale 1), temperature, heart rate.
 NOT available from the wearable, so scored 0: systolic BP, consciousness, supplemental O2.
 A total of 5+ is NEWS2's "urgent response" trigger, and any single 3 is an "urgent ward-based response".
 """
+import math
 
 
 def _band(value, bands):
@@ -19,12 +20,20 @@ TEMP = [(-1e9, 35.0, 3), (35.01, 36.0, 1), (36.01, 38.0, 0), (38.01, 39.0, 1), (
 HR = [(-1e9, 40, 3), (41, 50, 1), (51, 90, 0), (91, 110, 1), (111, 130, 2), (131, 1e9, 3)]
 
 
+def _round(value, decimals):
+    """Round half up, as a chart would record it. The bands are written for integers
+    (and 0.1 degC for temperature), so a fractional reading like HR 90.5 must be rounded
+    first or it would fall between bands and score 0."""
+    f = 10 ** decimals
+    return math.floor(value * f + 0.5) / f
+
+
 def news2(rr=None, spo2=None, temp=None, hr=None):
     parts, missing = {}, []
-    for name, value, bands in (("rr", rr, RR), ("spo2", spo2, SPO2), ("temp", temp, TEMP), ("hr", hr, HR)):
+    for name, value, bands, dp in (("rr", rr, RR, 0), ("spo2", spo2, SPO2, 0), ("temp", temp, TEMP, 1), ("hr", hr, HR, 0)):
         if value is None:
             missing.append(name)
         else:
-            parts[name] = _band(value, bands)
+            parts[name] = _band(_round(value, dp), bands)
     total = sum(parts.values())
     return {"score": total, "parts": parts, "missing": missing, "any_red": any(p == 3 for p in parts.values())}

@@ -1,0 +1,25 @@
+C:\Users\tejas\Projects\edge impulse hackathon\data\torgo\train-00000.parquet 4138
+C:\Users\tejas\Projects\edge impulse hackathon\data\torgo\train-00001.parquet 8275
+C:\Users\tejas\Projects\edge impulse hackathon\data\torgo\train-00002.parquet 12408
+C:\Users\tejas\Projects\edge impulse hackathon\data\torgo\train-00003.parquet 16544
+speakers: {np.str_('F01'): (236, True), np.str_('F03'): (1085, True), np.str_('F04'): (673, True), np.str_('FC01'): (302, False), np.str_('FC02'): (2187, False), np.str_('FC03'): (1922, False), np.str_('M01'): (743, True), np.str_('M02'): (772, True), np.str_('M03'): (810, True), np.str_('M04'): (666, True), np.str_('M05'): (585, True), np.str_('MC01'): (2155, False), np.str_('MC02'): (1123, False), np.str_('MC03'): (1667, False), np.str_('MC04'): (1618, False)}
+mics: {np.str_('headMic'): 7854, np.str_('arrayMic'): 8690}
+clip-level AUC, leave-one-speaker-out: 0.635
+F01 {'dysarthric': True, 'clips': 236, 'mean_p': 0.698, 'clips_called_dysarthric': 0.763}
+F03 {'dysarthric': True, 'clips': 1085, 'mean_p': 0.121, 'clips_called_dysarthric': 0.072}
+F04 {'dysarthric': True, 'clips': 673, 'mean_p': 0.318, 'clips_called_dysarthric': 0.248}
+FC01 {'dysarthric': False, 'clips': 302, 'mean_p': 0.193, 'clips_called_dysarthric': 0.083}
+FC02 {'dysarthric': False, 'clips': 2187, 'mean_p': 0.294, 'clips_called_dysarthric': 0.208}
+FC03 {'dysarthric': False, 'clips': 1922, 'mean_p': 0.486, 'clips_called_dysarthric': 0.467}
+M01 {'dysarthric': True, 'clips': 743, 'mean_p': 0.889, 'clips_called_dysarthric': 0.938}
+M02 {'dysarthric': True, 'clips': 772, 'mean_p': 0.871, 'clips_called_dysarthric': 0.935}
+M03 {'dysarthric': True, 'clips': 810, 'mean_p': 0.53, 'clips_called_dysarthric': 0.526}
+M04 {'dysarthric': True, 'clips': 666, 'mean_p': 0.868, 'clips_called_dysarthric': 0.943}
+M05 {'dysarthric': True, 'clips': 585, 'mean_p': 0.84, 'clips_called_dysarthric': 0.909}
+MC01 {'dysarthric': False, 'clips': 2155, 'mean_p': 0.39, 'clips_called_dysarthric': 0.372}
+MC02 {'dysarthric': False, 'clips': 1123, 'mean_p': 0.395, 'clips_called_dysarthric': 0.37}
+MC03 {'dysarthric': False, 'clips': 1667, 'mean_p': 0.516, 'clips_called_dysarthric': 0.528}
+MC04 {'dysarthric': False, 'clips': 1618, 'mean_p': 0.637, 'clips_called_dysarthric': 0.703}
+speaker-level AUC (mean p per speaker): 0.7678571428571429
+AUC within headMic: 0.669
+AUC within arrayMic: 0.592

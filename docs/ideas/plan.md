@@ -1,5 +1,41 @@
 # Level-up plan (merged from Claude, Gemini 4 Neon, GPT 6.2 Sol)
 
+## Status, Saturday about 20:00, after the deep-research round ([../research/sol.md](../research/sol.md), [../research/neon.md](../research/neon.md), [../research/speech.md](../research/speech.md))
+
+Done since 18:00:
+
+- **`.eim` running on the UNO Q** (engine eim, replay matches offline exactly).
+- **Strict re-evaluation.**
+  - The cutoff (0.55) is chosen on validation patients and scored strictly before onset.
+  - On test patients the model flags 78% at 0.91 false alerts per patient-day; the NEWS2 rule flags 76% at 1.61. See [../results.md](../results.md).
+  - Cutoff deployed to the board, and the wording changed to "model score".
+- **NEWS2 rounding gaps fixed.** Both Sol and Neon found them.
+- **Hourly history now records missed hours as empty rows** instead of compressing a disconnect into one hour. Neon found it.
+- **Slurred-speech classifier tested and rejected:** it works poorly on new speakers and is confounded by the microphone. It is replaced by a "months backwards" confusion check (needs a second Edge Impulse project).
+
+Next, in order:
+
+1. **Two-tier escalation card** (Sol and Neon): alert, then wait for the wearer to acknowledge, then the carer, then an SBAR summary with the three readings that changed most and a "call 111 or 999" line. Board thread.
+2. **IMU still/moving impulse** in a separate Edge Impulse project.
+   - Also set the accelerometer to 26 Hz to match the 25 Hz reads (Neon: at 52 Hz with 25 Hz reads, fast motion aliases into the slow band).
+   - Optional: add an anomaly block on the same spectral features.
+3. **Confusion check on the watch** (months backwards, keyword spotting) feeding NEWS2's consciousness item. Needs the Wear OS thread and an Edge Impulse key.
+4. **Watch heart-rate variability (RMSSD) and the watch's ambient temperature.**
+   - Neon found both exposed in the Samsung Health Sensor SDK 1.4.1 (`HeartRateSet.IBI_LIST` and `SkinTemperatureSet.AMBIENT_TEMPERATURE`).
+   - Show them on the dashboard as context only; they are not model inputs.
+5. **Temperature:**
+   - Stop scoring the fixed +3.5 °C "core" estimate in NEWS2.
+   - Show skin temperature and the change from the wearer's own baseline instead.
+   - Reason (Sol and Neon): wrist skin temperature can fall at fever onset because of vasoconstriction.
+
+Cut or parked:
+
+- Light-based perfusion: the LTR-381 has no LED emitter.
+- Platt calibration: the honest wording does the job tonight.
+- Retraining on delta features.
+
+**Pitch claims to check before quoting:** Neon's NICE NG253 citation and its competitor news (Isansys, Current Health, VitalConnect). Neither has been checked against the source yet.
+
 ## Status, Saturday about 18:00
 
 - DONE #1: LightGBM 24 h trends, in Edge Impulse via BYOM (impulse #4, ONNX of the trees because the free plan blocks classical ML), with an aarch64 `.eim` built and checked against LightGBM. Results are in [../results.md](../results.md).

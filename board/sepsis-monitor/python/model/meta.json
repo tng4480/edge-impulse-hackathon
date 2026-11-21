@@ -33,8 +33,8 @@
   "Resp_d6",
   "Resp_slope"
  ],
- "threshold": 0.58,
- "threshold_rule": "0.58: on held-out test patients, flags 74% of sepsis patients in the 24 h before onset (4-vital NEWS2 rule: 75%) with 0.82 false-alert episodes per patient-day (NEWS2 rule: 1.60). See training/out/threshold_sweep.json.",
+ "threshold": 0.55,
+ "threshold_rule": "0.55: chosen on validation patients to match the 4-vital NEWS2 rule's catch rate. On held-out test patients it flags 78% of sepsis patients in the 24 h strictly before onset (NEWS2 rule: 76%) with 0.91 false-alert episodes per patient-day (NEWS2 rule: 1.61). See training/out/strict_eval.json.",
  "trees": 176,
  "threshold_validation_15pct": 0.6143828914049111
 }

@@ -6,10 +6,10 @@
 <title>Sepsis monitor</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mute:#6b7380; --line:#e2e5ea;
-          --ok:#1f8f5f; --warn:#c77d0a; --bad:#c62f3b; --accent:#2457d6; }
+          --ok:#1f8f5f; --warn:#c77d0a; --bad:#c62f3b; --accent:#2457d6; --replay:#6a3fd1; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#111418; --card:#1a1f26; --ink:#eef0f3; --mute:#97a0ad; --line:#2a313b;
-            --ok:#47c58f; --warn:#e8a43a; --bad:#ef6670; --accent:#6f95ff; }
+            --ok:#47c58f; --warn:#e8a43a; --bad:#ef6670; --accent:#6f95ff; --replay:#a58cff; }
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 system-ui,Segoe UI,Roboto,sans-serif; }
@@ -18,27 +18,36 @@
   h1 { font-size:20px; margin:0; }
   .sub { color:var(--mute); font-size:13px; }
   .banner { margin:14px 0; padding:12px 14px; border-radius:10px; font-weight:600; display:none; }
-  .banner.on { display:flex; justify-content:space-between; align-items:center; gap:10px;
-               background:var(--bad); color:#fff; }
+  .banner.on { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  #banner.on { background:var(--bad); color:#fff; }
+  #replay_banner.on { background:var(--replay); color:#fff; font-size:18px; }
   .banner button { background:#fff; color:var(--bad); border:0; border-radius:8px; padding:6px 12px; font-weight:600; cursor:pointer; }
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:12px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card.replaying { border-color:var(--replay); }
   .label { color:var(--mute); font-size:13px; }
   .val { font-size:40px; font-weight:700; letter-spacing:-.02em; margin:2px 0; font-variant-numeric:tabular-nums; }
   .unit { font-size:15px; color:var(--mute); font-weight:500; margin-left:4px; }
   .src { font-size:12px; color:var(--mute); }
   .pts { display:inline-block; min-width:22px; text-align:center; border-radius:6px; padding:0 6px; font-size:12px; font-weight:700; color:#fff; background:var(--ok); }
   .pts.p1,.pts.p2 { background:var(--warn); } .pts.p3 { background:var(--bad); }
-  .gauge { height:14px; border-radius:8px; background:var(--line); overflow:hidden; margin-top:8px; }
+  .gauge { height:14px; border-radius:8px; background:var(--line); overflow:hidden; margin-top:8px; position:relative; }
   .gauge > div { height:100%; width:0; background:var(--ok); transition:width .4s, background .4s; }
+  .gauge .thr { position:absolute; top:0; bottom:0; width:2px; background:var(--ink); opacity:.55; }
   .wide { grid-column:1/-1; }
   .row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:8px; }
   .row label { display:flex; flex-direction:column; font-size:13px; color:var(--mute); flex:1; min-width:150px; }
   input[type=range] { width:100%; }
+  select { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:14px; max-width:100%; }
   button.act { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
   button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.replay { background:var(--replay); }
   details summary { cursor:pointer; color:var(--mute); font-size:14px; }
-  code { font-size:12px; color:var(--mute); }
+  #chart { width:100%; height:auto; display:block; margin-top:8px; }
+  #chart text { fill:var(--mute); font-size:10px; font-family:inherit; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--mute); margin-top:4px; }
+  .legend i { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:5px; border-radius:2px; }
+  .footer { margin:16px 0 4px; color:var(--mute); font-size:12px; }
 </style>
 </head>
 <body>
@@ -48,7 +57,9 @@
     <div class="sub" id="status">connecting…</div>
   </header>
 
-  <div class="banner" id="banner"><span>Deterioration alert: NEWS2 score is high. Check the patient.</span>
+  <div class="banner" id="replay_banner"><span id="replay_text">REPLAY</span>
+    <span id="replay_hour" style="font-weight:500;font-size:14px"></span></div>
+  <div class="banner" id="banner"><span>Deterioration alert: check the patient.</span>
     <button onclick="post('/ack')">Acknowledge</button></div>
 
   <div class="grid">
@@ -72,10 +83,35 @@
       <div class="gauge"><div id="news_bar"></div></div>
     </div>
 
-    <div class="card wide">
-      <div class="label">Edge model risk</div>
+    <div class="card wide" id="risk_card">
+      <div class="label">Edge model risk (trend over the last hours, runs on the board, no cloud)</div>
       <div class="val"><span id="risk">–</span><span class="unit" id="risk_note"></span></div>
-      <div class="gauge"><div id="risk_bar"></div></div>
+      <div class="gauge"><div id="risk_bar"></div><div class="thr" id="risk_thr" style="display:none"></div></div>
+      <div class="src" id="risk_detail" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card wide">
+      <div class="label">Replay a recorded ICU patient (PhysioNet 2019, held-out, accelerated)</div>
+      <div class="row">
+        <select id="case_sel"></select>
+        <select id="speed_sel">
+          <option value="3">slow (3 s per hour)</option>
+          <option value="1.5" selected>normal (1.5 s per hour)</option>
+          <option value="0.8">fast (0.8 s per hour)</option>
+        </select>
+        <button class="act replay" onclick="startReplay()">Start replay</button>
+        <button class="act ghost" onclick="post('/replay/stop')">Stop</button>
+      </div>
+      <div id="chart_wrap" style="display:none">
+        <svg id="chart" viewBox="0 0 600 190" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i>model risk %</span>
+          <span><i style="background:var(--warn)"></i>NEWS2 (0–9, scaled)</span>
+          <span><i style="background:var(--ink);opacity:.5"></i>alert threshold</span>
+          <span><i style="background:var(--bad)"></i>sepsis onset</span>
+        </div>
+        <div class="src" id="tl_summary" style="margin-top:6px"></div>
+      </div>
     </div>
 
     <div class="card"><div class="label">Room (Modulino Thermo / Light)</div>
@@ -98,6 +134,10 @@
       <button class="act ghost" onclick="post('/vibe')">Test vibration</button>
     </div>
   </details>
+
+  <div class="footer" id="results"></div>
+  <div class="footer">Decision-support prototype, not a medical device. Replay shows recorded data from a public ICU
+    dataset, played faster than real time. Live mode needs several hours of history before the model answers.</div>
 </main>
 
 <script>
@@ -113,40 +153,99 @@ for (const k of ['hr','spo2','temp','rr']) {
 }
 function sendOverride() { post('/override', {hr:+$('o_hr').value, spo2:+$('o_spo2').value, temp:+$('o_temp').value, rr:+$('o_rr').value}); }
 function clearOverride() { post('/override', {hr:null, spo2:null, temp:null, rr:null}); }
+function startReplay() { post('/replay/start', {case: $('case_sel').value, seconds_per_hour: +$('speed_sel').value}); }
 
-function setBar(id, pct) {
+function setBar(id, pct, thr) {
   const el = $(id); el.style.width = Math.max(0, Math.min(100, pct)) + '%';
-  el.style.background = pct >= 70 ? 'var(--bad)' : pct >= 40 ? 'var(--warn)' : 'var(--ok)';
+  const hi = thr != null ? thr : 70;
+  el.style.background = pct >= hi ? 'var(--bad)' : pct >= hi * 0.6 ? 'var(--warn)' : 'var(--ok)';
+}
+
+let casesFilled = false;
+function fillCases(cases) {
+  if (casesFilled || !cases || !cases.length) return;
+  $('case_sel').innerHTML = cases.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  casesFilled = true;
+}
+
+function drawChart(rp) {
+  const W = 600, H = 190, L = 34, R = 10, T = 10, B = 24;
+  const start = rp.start_hour, end = rp.end_hour, span = Math.max(1, end - start);
+  const x = h => L + (h - start) / span * (W - L - R);
+  const y = v => T + (1 - v / 100) * (H - T - B);
+  let g = '';
+  for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-5}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const step = Math.max(1, Math.round(span / 6));
+  for (let h = start; h <= end; h += step) g += `<text x="${x(h)}" y="${H-8}" text-anchor="middle">h${h}</text>`;
+  const thr = rp.risk && rp.risk.threshold;
+  if (thr != null) g += `<line x1="${L}" x2="${W-R}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--ink)" stroke-opacity=".5" stroke-dasharray="4 3"/>`;
+  if (rp.onset_hour != null && rp.onset_hour >= start && rp.onset_hour <= end)
+    g += `<line x1="${x(rp.onset_hour)}" x2="${x(rp.onset_hour)}" y1="${T}" y2="${H-B}" stroke="var(--bad)" stroke-width="2"/><text x="${x(rp.onset_hour)-4}" y="${T+10}" text-anchor="end" style="fill:var(--bad)">onset</text>`;
+  const line = (pts, color) => pts.length > 1 ? `<polyline fill="none" stroke="${color}" stroke-width="2.2" points="${pts.map(p => p.join(',')).join(' ')}"/>` : '';
+  const tl = rp.timeline;
+  g += line(tl.filter(p => p.news2 != null).map(p => [x(p.hour), y(p.news2 / 9 * 100)]), 'var(--warn)');
+  g += line(tl.filter(p => p.risk != null).map(p => [x(p.hour), y(p.risk)]), 'var(--accent)');
+  g += `<line x1="${x(rp.hour)}" x2="${x(rp.hour)}" y1="${T}" y2="${H-B}" stroke="var(--replay)" stroke-width="1.5"/>`;
+  $('chart').innerHTML = g;
+
+  const firstModel = tl.find(p => p.alert), firstN2 = tl.find(p => p.news2_alert);
+  const rel = p => rp.onset_hour == null ? `hour ${p.hour}` : `${Math.abs(rp.onset_hour - p.hour)} h ${p.hour <= rp.onset_hour ? 'before' : 'after'} onset`;
+  $('tl_summary').textContent =
+    `Model first alerts: ${firstModel ? rel(firstModel) : 'not yet'} · NEWS2 rule (5+ or any 3) first alerts: ${firstN2 ? rel(firstN2) : 'not yet'}`;
 }
 
 async function refresh() {
   try {
-    const s = await (await fetch('/api/state')).json();
+    const [s, rp] = await Promise.all([fetch('/api/state').then(r => r.json()), fetch('/api/replay').then(r => r.json())]);
+    fillCases(rp.cases);
+    const rep = rp.active;
+    const V = rep ? rp.vitals : null;
+    $('replay_banner').classList.toggle('on', rep);
+    if (rep) {
+      $('replay_text').textContent = 'REPLAY: ' + rp.label;
+      $('replay_hour').textContent = `hour ${rp.hour} of ${rp.end_hour}` + (rp.hours_to_onset != null ? ` · ${rp.hours_to_onset > 0 ? rp.hours_to_onset + ' h until sepsis onset' : (rp.hours_to_onset === 0 ? 'sepsis onset' : -rp.hours_to_onset + ' h after onset')}` : ' · patient never developed sepsis') + (rp.done ? ' · finished' : '');
+    }
+
     for (const [k, d] of [['rr',0],['hr',0],['spo2',0],['temp',1]]) {
+      if (rep) { $(k).textContent = fmt(V[k], d); $(k+'_src').textContent = 'recorded ICU data (replay)'; continue; }
       $(k).textContent = fmt(s.vitals[k].v, d);
       let extra = '';
       if (k === 'rr' && s.vitals.rr.v == null) extra = ' · ' + (s.rr_detail.reason || '');
       if (k === 'temp' && s.vitals.temp.skin_c != null) extra = ` · skin ${s.vitals.temp.skin_c.toFixed(1)} °C + 3.5`;
       $(k+'_src').textContent = srcText(s.vitals[k].src) + extra;
     }
-    $('news').textContent = s.news2.score;
-    setBar('news_bar', s.news2.score / 9 * 100);
-    $('parts').innerHTML = Object.entries(s.news2.parts).map(([k,p]) =>
+
+    const n2 = rep ? rp.news2 : s.news2;
+    $('news').textContent = n2.score;
+    setBar('news_bar', n2.score / 9 * 100, 55);
+    $('parts').innerHTML = Object.entries(n2.parts).map(([k,p]) =>
       `<span>${k.toUpperCase()} <span class="pts p${p}">${p}</span></span>`).join('') +
-      (s.news2.missing.length ? `<span class="src">missing: ${s.news2.missing.join(', ')}</span>` : '');
+      (n2.missing.length ? `<span class="src">missing: ${n2.missing.join(', ')}</span>` : '');
     $('banner').classList.toggle('on', s.alert.active && !s.alert.muted);
 
-    const r = s.risk.risk;
+    const m = rep ? rp.risk : s.risk;
+    const r = m.risk;
     $('risk').textContent = r == null ? '–' : r.toFixed(0);
-    $('risk_note').textContent = r == null ? s.risk.note : '% sepsis risk';
-    setBar('risk_bar', r == null ? 0 : r);
+    $('risk_note').textContent = r == null ? (m.note || '') : '% sepsis risk' + (m.alert ? ' · ALERT' : '');
+    const thr = m.threshold;
+    setBar('risk_bar', r == null ? 0 : r, thr);
+    $('risk_thr').style.display = thr != null ? 'block' : 'none';
+    if (thr != null) $('risk_thr').style.left = thr + '%';
+    const tr = m.trend && Object.keys(m.trend).length
+      ? ' · 6 h change: ' + Object.entries(m.trend).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') : '';
+    $('risk_detail').textContent = (m.engine ? `engine: ${m.engine === 'eim' ? 'Edge Impulse model (.eim)' : 'tree fallback'} · ` : '') +
+      (m.hours != null ? `${m.hours} h of history · ` : '') + (thr != null ? `alert threshold ${thr}%` : '') + tr;
+
+    $('chart_wrap').style.display = rep ? 'block' : 'none';
+    if (rep) drawChart(rp);
+    $('results').textContent = rp.results || '';
 
     const e = s.env;
     $('env').textContent = `${fmt(e.temp_c,1)} °C · ${fmt(e.hum_pct,0)} % RH · ${e.lux == null ? '–' : e.lux + ' lux'}`;
     const w = s.watch;
     $('board').textContent = `${s.devices || 'no status'} · IMU ${s.imu_hz ?? '–'} samples/s · watch packets ${w.packets}` +
       (w.last_age_s == null ? ' (none yet)' : ` (last ${w.last_age_s}s ago)`);
-    $('status').textContent = 'live · ' + new Date().toLocaleTimeString();
+    $('status').textContent = (rep ? 'replay · ' : 'live · ') + new Date().toLocaleTimeString();
   } catch (err) { $('status').textContent = 'board unreachable'; }
 }
 setInterval(refresh, 1000); refresh();

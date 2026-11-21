@@ -1,0 +1,38 @@
+val 184 sepsis, 2926 non-sepsis
+test 476 sepsis, 7422 non-sepsis
+{
+ "definition": "alerts in the 24 h strictly before onset (onset = first label + 6 h); thresholds chosen on validation patients",
+ "validation": {
+  "news2_rule": {
+   "flagged_before_onset": 0.804,
+   "false_alerts_per_patient_day": 1.62
+  },
+  "same_catch_threshold": 0.55,
+  "same_burden_threshold": 0.3,
+  "n_sepsis": 184,
+  "n_nonsepsis": 2926
+ },
+ "test": {
+  "n_sepsis": 476,
+  "n_nonsepsis": 7422,
+  "news2_rule": {
+   "flagged_before_onset": 0.761,
+   "false_alerts_per_patient_day": 1.61
+  },
+  "model_same_catch": {
+   "threshold": 0.55,
+   "flagged_before_onset": 0.775,
+   "false_alerts_per_patient_day": 0.91
+  },
+  "model_same_burden": {
+   "threshold": 0.3,
+   "flagged_before_onset": 0.966,
+   "false_alerts_per_patient_day": 1.46
+  },
+  "model_val_15pct_window_threshold": {
+   "threshold": 0.614,
+   "flagged_before_onset": 0.689,
+   "false_alerts_per_patient_day": 0.71
+  }
+ }
+}

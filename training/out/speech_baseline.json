@@ -1,0 +1,92 @@
+{
+ "F01": {
+  "dysarthric": true,
+  "clips": 236,
+  "mean_p": 0.698,
+  "clips_called_dysarthric": 0.763
+ },
+ "F03": {
+  "dysarthric": true,
+  "clips": 1085,
+  "mean_p": 0.121,
+  "clips_called_dysarthric": 0.072
+ },
+ "F04": {
+  "dysarthric": true,
+  "clips": 673,
+  "mean_p": 0.318,
+  "clips_called_dysarthric": 0.248
+ },
+ "FC01": {
+  "dysarthric": false,
+  "clips": 302,
+  "mean_p": 0.193,
+  "clips_called_dysarthric": 0.083
+ },
+ "FC02": {
+  "dysarthric": false,
+  "clips": 2187,
+  "mean_p": 0.294,
+  "clips_called_dysarthric": 0.208
+ },
+ "FC03": {
+  "dysarthric": false,
+  "clips": 1922,
+  "mean_p": 0.486,
+  "clips_called_dysarthric": 0.467
+ },
+ "M01": {
+  "dysarthric": true,
+  "clips": 743,
+  "mean_p": 0.889,
+  "clips_called_dysarthric": 0.938
+ },
+ "M02": {
+  "dysarthric": true,
+  "clips": 772,
+  "mean_p": 0.871,
+  "clips_called_dysarthric": 0.935
+ },
+ "M03": {
+  "dysarthric": true,
+  "clips": 810,
+  "mean_p": 0.53,
+  "clips_called_dysarthric": 0.526
+ },
+ "M04": {
+  "dysarthric": true,
+  "clips": 666,
+  "mean_p": 0.868,
+  "clips_called_dysarthric": 0.943
+ },
+ "M05": {
+  "dysarthric": true,
+  "clips": 585,
+  "mean_p": 0.84,
+  "clips_called_dysarthric": 0.909
+ },
+ "MC01": {
+  "dysarthric": false,
+  "clips": 2155,
+  "mean_p": 0.39,
+  "clips_called_dysarthric": 0.372
+ },
+ "MC02": {
+  "dysarthric": false,
+  "clips": 1123,
+  "mean_p": 0.395,
+  "clips_called_dysarthric": 0.37
+ },
+ "MC03": {
+  "dysarthric": false,
+  "clips": 1667,
+  "mean_p": 0.516,
+  "clips_called_dysarthric": 0.528
+ },
+ "MC04": {
+  "dysarthric": false,
+  "clips": 1618,
+  "mean_p": 0.637,
+  "clips_called_dysarthric": 0.703
+ }
+}

@@ -30,7 +30,17 @@ MODEL_EVERY_S = 5               # live model re-score interval
 
 HR_FRESH_S = 30         # watch hr older than this is treated as missing
 TEMP_FRESH_S = 180      # watch reads skin temp about once a minute; hold the last good one for 3 minutes
-SKIN_TO_CORE_C = 3.5    # rough estimate: skin runs ~2-4 C below core. NEWS2 bands are for core temperature.
+# Wrist skin temperature is NOT core temperature: it can even fall at fever onset (vasoconstriction),
+# so it is never fed to NEWS2 or the model. We show it against the wearer's own baseline instead.
+SKIN_BASE_NEWEST_S = 600        # baseline = median of skin readings from 10 min ago ...
+SKIN_BASE_OLDEST_S = 6 * 3600   # ... back to 6 h ago
+SKIN_BASE_MIN_N = 10            # readings needed before a baseline is shown
+SKIN_CHANGE_FLAG_C = 1.0        # highlight only; there is no validated threshold, so it never alerts
+ESCALATE_AFTER_S = 120          # default: carer view after an alert goes unacknowledged this long
+# Typical clinically meaningful 6 h change per vital, used only to RANK trends for the SBAR summary.
+TREND_SCALE = {"HR": 20.0, "O2Sat": 3.0, "Temp": 1.0, "Resp": 5.0}
+TREND_NAME = {"HR": ("Heart rate", "bpm"), "O2Sat": ("SpO2", "%"), "Temp": ("Temperature", "°C"),
+              "Resp": ("Respiratory rate", "/min")}
 SPO2_FRESH_S = 600      # SpO2 is a spot reading; keep it 10 minutes
 RR_STABLE_N = 3         # respiratory rate counts only after this many agreeing readings (5 s apart)
 RR_STABLE_SPREAD = 3.0  # ... that all lie within this many breaths/min of each other
@@ -147,8 +157,8 @@ REPLAY_LOCK = threading.Lock()   # Replay.state() scores new hours and mutates i
 
 
 # Held-out test results from docs/results.md (main thread, Edge Impulse BYOM LightGBM vs 4-vital NEWS2 rule).
-RESULTS_NOTE = ("Held-out patients: model flags 74% of sepsis patients in the 24 h before onset with "
-                "0.82 false alerts per patient-day; the 4-vital NEWS2 rule flags 75% with 1.60.")
+RESULTS_NOTE = ("Held-out patients, cutoff 0.55 chosen on validation: model score flags 78% of sepsis patients "
+                "in the 24 h before onset with 0.91 false alerts per patient-day; the 4-vital NEWS2 rule flags 76% with 1.61.")
 
 
 def replay_state():

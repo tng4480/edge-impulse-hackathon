@@ -142,6 +142,10 @@ class HourlyVitals:
         hour = int(now // 3600)
         if self.cur_hour is not None and hour != self.cur_hour:
             self.rows.append(self._median_row())
+            # Hours with no readings at all (watch off, board unplugged) become empty rows,
+            # as in the PhysioNet training data, so trend features see the real time gap.
+            gap = min(max(0, hour - self.cur_hour - 1), self.keep)
+            self.rows.extend([[None] * len(VITALS)] * gap)
             self.rows = self.rows[-self.keep:]
             self.cur = {v: [] for v in VITALS}
         self.cur_hour = hour
