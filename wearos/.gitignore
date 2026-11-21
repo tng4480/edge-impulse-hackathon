@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Samsung's SDK licence does not allow redistributing the .aar; each developer downloads their own.
+app/libs/*.aar

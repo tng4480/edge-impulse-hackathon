@@ -1,0 +1,16 @@
+{
+ "threshold": 0.6143828914049111,
+ "n_sepsis_patients": 492,
+ "n_nonsepsis_patients": 7422,
+ "model": {
+  "flagged_before_onset": 0.693089430894309,
+  "median_lead_h": 17.0,
+  "false_alert_episodes_per_patient_day": 0.7068161398534464
+ },
+ "news2_rule": {
+  "flagged_before_onset": 0.7540650406504065,
+  "median_lead_h": 16.0,
+  "false_alert_episodes_per_patient_day": 1.6035830221816885
+ },
+ "model_earlier_than_news2": 0.32113821138211385
+}

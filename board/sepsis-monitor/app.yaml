@@ -1,0 +1,5 @@
+name: sepsis-monitor
+icon: 🫁
+description: Sepsis early-warning wearable. Chest IMU respiratory rate, watch vitals over HTTP, risk score and dashboard.
+ports: [8000]
+bricks: []

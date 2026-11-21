@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sepsis monitor</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mute:#6b7380; --line:#e2e5ea;
+          --ok:#1f8f5f; --warn:#c77d0a; --bad:#c62f3b; --accent:#2457d6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1a1f26; --ink:#eef0f3; --mute:#97a0ad; --line:#2a313b;
+            --ok:#47c58f; --warn:#e8a43a; --bad:#ef6670; --accent:#6f95ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 system-ui,Segoe UI,Roboto,sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  h1 { font-size:20px; margin:0; }
+  .sub { color:var(--mute); font-size:13px; }
+  .banner { margin:14px 0; padding:12px 14px; border-radius:10px; font-weight:600; display:none; }
+  .banner.on { display:flex; justify-content:space-between; align-items:center; gap:10px;
+               background:var(--bad); color:#fff; }
+  .banner button { background:#fff; color:var(--bad); border:0; border-radius:8px; padding:6px 12px; font-weight:600; cursor:pointer; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .label { color:var(--mute); font-size:13px; }
+  .val { font-size:40px; font-weight:700; letter-spacing:-.02em; margin:2px 0; font-variant-numeric:tabular-nums; }
+  .unit { font-size:15px; color:var(--mute); font-weight:500; margin-left:4px; }
+  .src { font-size:12px; color:var(--mute); }
+  .pts { display:inline-block; min-width:22px; text-align:center; border-radius:6px; padding:0 6px; font-size:12px; font-weight:700; color:#fff; background:var(--ok); }
+  .pts.p1,.pts.p2 { background:var(--warn); } .pts.p3 { background:var(--bad); }
+  .gauge { height:14px; border-radius:8px; background:var(--line); overflow:hidden; margin-top:8px; }
+  .gauge > div { height:100%; width:0; background:var(--ok); transition:width .4s, background .4s; }
+  .wide { grid-column:1/-1; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+  .row label { display:flex; flex-direction:column; font-size:13px; color:var(--mute); flex:1; min-width:150px; }
+  input[type=range] { width:100%; }
+  button.act { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  details summary { cursor:pointer; color:var(--mute); font-size:14px; }
+  code { font-size:12px; color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Sepsis early-warning monitor</h1>
+    <div class="sub" id="status">connecting…</div>
+  </header>
+
+  <div class="banner" id="banner"><span>Deterioration alert: NEWS2 score is high. Check the patient.</span>
+    <button onclick="post('/ack')">Acknowledge</button></div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Respiratory rate</div>
+      <div class="val"><span id="rr">–</span><span class="unit">/min</span></div>
+      <div class="src" id="rr_src"></div></div>
+    <div class="card"><div class="label">Heart rate</div>
+      <div class="val"><span id="hr">–</span><span class="unit">bpm</span></div>
+      <div class="src" id="hr_src"></div></div>
+    <div class="card"><div class="label">SpO₂</div>
+      <div class="val"><span id="spo2">–</span><span class="unit">%</span></div>
+      <div class="src" id="spo2_src"></div></div>
+    <div class="card"><div class="label">Temperature (core estimate)</div>
+      <div class="val"><span id="temp">–</span><span class="unit">°C</span></div>
+      <div class="src" id="temp_src"></div></div>
+
+    <div class="card wide">
+      <div class="label">NEWS2 (partial: RR, SpO₂, temperature, heart rate; BP, consciousness and oxygen are not measured)</div>
+      <div class="val"><span id="news">–</span><span class="unit">points · 5+ = urgent response</span></div>
+      <div class="row" id="parts"></div>
+      <div class="gauge"><div id="news_bar"></div></div>
+    </div>
+
+    <div class="card wide">
+      <div class="label">Edge model risk</div>
+      <div class="val"><span id="risk">–</span><span class="unit" id="risk_note"></span></div>
+      <div class="gauge"><div id="risk_bar"></div></div>
+    </div>
+
+    <div class="card"><div class="label">Room (Modulino Thermo / Light)</div>
+      <div id="env" class="src" style="font-size:15px;color:var(--ink)">–</div></div>
+    <div class="card"><div class="label">Board</div>
+      <div id="board" class="src" style="font-size:14px;color:var(--ink)">–</div></div>
+  </div>
+
+  <details class="card" style="margin-top:12px">
+    <summary>Demo controls (override a vital for 10 minutes)</summary>
+    <div class="row">
+      <label>Heart rate <b id="o_hr_v">–</b><input type="range" id="o_hr" min="40" max="160" value="75"></label>
+      <label>SpO₂ <b id="o_spo2_v">–</b><input type="range" id="o_spo2" min="80" max="100" value="97"></label>
+      <label>Temperature <b id="o_temp_v">–</b><input type="range" id="o_temp" min="34" max="41" step="0.1" value="36.8"></label>
+      <label>Resp. rate <b id="o_rr_v">–</b><input type="range" id="o_rr" min="4" max="40" value="16"></label>
+    </div>
+    <div class="row">
+      <button class="act" onclick="sendOverride()">Apply overrides</button>
+      <button class="act ghost" onclick="clearOverride()">Clear overrides</button>
+      <button class="act ghost" onclick="post('/vibe')">Test vibration</button>
+    </div>
+  </details>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, d=0) => v == null ? '–' : Number(v).toFixed(d);
+const srcText = s => s ? ({watch:'from watch', imu:'from chest IMU', override:'manual override'}[s] || s) : 'no data';
+
+function post(path, body) {
+  return fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {})});
+}
+for (const k of ['hr','spo2','temp','rr']) {
+  const el = $('o_'+k); el.oninput = () => $('o_'+k+'_v').textContent = el.value; el.oninput();
+}
+function sendOverride() { post('/override', {hr:+$('o_hr').value, spo2:+$('o_spo2').value, temp:+$('o_temp').value, rr:+$('o_rr').value}); }
+function clearOverride() { post('/override', {hr:null, spo2:null, temp:null, rr:null}); }
+
+function setBar(id, pct) {
+  const el = $(id); el.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  el.style.background = pct >= 70 ? 'var(--bad)' : pct >= 40 ? 'var(--warn)' : 'var(--ok)';
+}
+
+async function refresh() {
+  try {
+    const s = await (await fetch('/api/state')).json();
+    for (const [k, d] of [['rr',0],['hr',0],['spo2',0],['temp',1]]) {
+      $(k).textContent = fmt(s.vitals[k].v, d);
+      let extra = '';
+      if (k === 'rr' && s.vitals.rr.v == null) extra = ' · ' + (s.rr_detail.reason || '');
+      if (k === 'temp' && s.vitals.temp.skin_c != null) extra = ` · skin ${s.vitals.temp.skin_c.toFixed(1)} °C + 3.5`;
+      $(k+'_src').textContent = srcText(s.vitals[k].src) + extra;
+    }
+    $('news').textContent = s.news2.score;
+    setBar('news_bar', s.news2.score / 9 * 100);
+    $('parts').innerHTML = Object.entries(s.news2.parts).map(([k,p]) =>
+      `<span>${k.toUpperCase()} <span class="pts p${p}">${p}</span></span>`).join('') +
+      (s.news2.missing.length ? `<span class="src">missing: ${s.news2.missing.join(', ')}</span>` : '');
+    $('banner').classList.toggle('on', s.alert.active && !s.alert.muted);
+
+    const r = s.risk.risk;
+    $('risk').textContent = r == null ? '–' : r.toFixed(0);
+    $('risk_note').textContent = r == null ? s.risk.note : '% sepsis risk';
+    setBar('risk_bar', r == null ? 0 : r);
+
+    const e = s.env;
+    $('env').textContent = `${fmt(e.temp_c,1)} °C · ${fmt(e.hum_pct,0)} % RH · ${e.lux == null ? '–' : e.lux + ' lux'}`;
+    const w = s.watch;
+    $('board').textContent = `${s.devices || 'no status'} · IMU ${s.imu_hz ?? '–'} samples/s · watch packets ${w.packets}` +
+      (w.last_age_s == null ? ' (none yet)' : ` (last ${w.last_age_s}s ago)`);
+    $('status').textContent = 'live · ' + new Date().toLocaleTimeString();
+  } catch (err) { $('status').textContent = 'board unreachable'; }
+}
+setInterval(refresh, 1000); refresh();
+</script>
+</body>
+</html>

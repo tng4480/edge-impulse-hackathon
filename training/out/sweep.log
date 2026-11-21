@@ -1,0 +1,42 @@
+[
+ {
+  "threshold": 0.4,
+  "flagged_before_onset": 0.911,
+  "false_alerts_per_patient_day": 1.34
+ },
+ {
+  "threshold": 0.45,
+  "flagged_before_onset": 0.87,
+  "false_alerts_per_patient_day": 1.21
+ },
+ {
+  "threshold": 0.5,
+  "flagged_before_onset": 0.831,
+  "false_alerts_per_patient_day": 1.07
+ },
+ {
+  "threshold": 0.52,
+  "flagged_before_onset": 0.815,
+  "false_alerts_per_patient_day": 1.01
+ },
+ {
+  "threshold": 0.55,
+  "flagged_before_onset": 0.774,
+  "false_alerts_per_patient_day": 0.91
+ },
+ {
+  "threshold": 0.58,
+  "flagged_before_onset": 0.742,
+  "false_alerts_per_patient_day": 0.82
+ },
+ {
+  "threshold": 0.614,
+  "flagged_before_onset": 0.693,
+  "false_alerts_per_patient_day": 0.71
+ },
+ {
+  "threshold": 0.65,
+  "flagged_before_onset": 0.622,
+  "false_alerts_per_patient_day": 0.57
+ }
+]

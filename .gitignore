@@ -1,0 +1,8 @@
+.venv/
+data/raw/
+data/ei/
+__pycache__/
+board/sepsis-monitor/python/model/*.eim
+training/out/*.eim
+training/out/*.npy
+training/*.npy
