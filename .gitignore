@@ -7,3 +7,7 @@ training/out/*.eim
 training/out/*.npy
 training/*.npy
 data/torgo/
+data/speechcmd/
+data/speechcmd_wav/
+training/out/speech/*.eim
+board/sepsis-monitor/python/baseline.json

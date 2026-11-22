@@ -26,7 +26,11 @@ from features import VITALS, features  # noqa: E402
 from model_runner import Trees  # noqa: E402
 from news2 import news2  # noqa: E402
 
-trees = Trees(ROOT / "training" / "out" / "model.json")
+import os
+MODEL_JSON = os.environ.get("MODEL_JSON", str(ROOT / "training" / "out" / "model.json"))
+TAG = os.environ.get("OUT_TAG", "")
+MASK_TEMP = os.environ.get("MASK_TEMP") == "1"   # score both methods without temperature, as on the device
+trees = Trees(MODEL_JSON)
 
 
 def h(pid, salt=""):
@@ -67,6 +71,8 @@ def collect(which):
             continue
         df = pd.read_csv(f, sep="|", usecols=list(VITALS) + ["SepsisLabel"])
         rows = [[None if pd.isna(v) else float(v) for v in r] for r in df[list(VITALS)].itertuples(index=False)]
+        if MASK_TEMP:
+            rows = [[r[0], r[1], None, r[3]] for r in rows]
         lab = df["SepsisLabel"].to_numpy()
         risk, n2 = score_patient(rows)
         if lab.max() == 1:
@@ -87,11 +93,19 @@ def episodes(flags):
 def metrics(seps, heal, thr=None):
     """thr=None -> NEWS2 rule; else model risk >= thr."""
     flag = (lambda r, n: n) if thr is None else (lambda r, n: r >= thr)
-    caught = [flag(r, n)[max(0, o - 24):o].any() for r, n, o in seps]
+    caught, leads = [], []
+    for r, n, o in seps:
+        w = flag(r, n)[max(0, o - 24):o]
+        caught.append(w.any())
+        if w.any():
+            leads.append(len(w) - int(np.argmax(w)))   # hours from first alert in the window to onset
     hours = sum(max(0, (r >= 0).sum()) for r, n in heal)
     eps = sum(episodes(flag(r, n)[r >= 0]) for r, n in heal)
+    on = sum(int(flag(r, n)[r >= 0].sum()) for r, n in heal)
     return {"flagged_before_onset": round(float(np.mean(caught)), 3),
-            "false_alerts_per_patient_day": round(eps / (hours / 24), 2)}
+            "false_alerts_per_patient_day": round(eps / (hours / 24), 2),
+            "nonsepsis_hours_in_alert": round(on / hours, 3),
+            "median_first_alert_hours_before_onset": float(np.median(leads)) if leads else None}
 
 
 def main():
@@ -102,6 +116,10 @@ def main():
     val_curve = {float(t): metrics(val_s, val_h, t) for t in grid}
     same_catch = min(grid, key=lambda t: abs(val_curve[float(t)]["flagged_before_onset"] - n2_val["flagged_before_onset"]))
     same_burden = min(grid, key=lambda t: abs(val_curve[float(t)]["false_alerts_per_patient_day"] - n2_val["false_alerts_per_patient_day"]))
+    same_hours = min(grid, key=lambda t: abs(val_curve[float(t)]["nonsepsis_hours_in_alert"] - n2_val["nonsepsis_hours_in_alert"]))
+    test_curve = {float(t): metrics(tst_s, tst_h, float(t)) for t in grid}
+    (ROOT / "training" / "out" / f"strict_curves{TAG and '_' + TAG}.json").write_text(json.dumps(
+        {"validation": {"news2_rule": n2_val, "model": val_curve}, "test": {"news2_rule": metrics(tst_s, tst_h), "model": test_curve}}, indent=1))
     res = {
         "definition": "alerts in the 24 h strictly before onset (onset = first label + 6 h); thresholds chosen on validation patients",
         "validation": {"news2_rule": n2_val, "same_catch_threshold": float(same_catch), "same_burden_threshold": float(same_burden),
@@ -110,10 +128,11 @@ def main():
                  "news2_rule": metrics(tst_s, tst_h),
                  "model_same_catch": {"threshold": float(same_catch), **metrics(tst_s, tst_h, float(same_catch))},
                  "model_same_burden": {"threshold": float(same_burden), **metrics(tst_s, tst_h, float(same_burden))},
+                 "model_same_hours_in_alert": {"threshold": float(same_hours), **metrics(tst_s, tst_h, float(same_hours))},
                  "model_val_15pct_window_threshold": {"threshold": 0.614, **metrics(tst_s, tst_h, 0.614)}},
     }
     print(json.dumps(res, indent=1))
-    (ROOT / "training" / "out" / "strict_eval.json").write_text(json.dumps(res, indent=1))
+    (ROOT / "training" / "out" / f"strict_eval{TAG and '_' + TAG}.json").write_text(json.dumps(res, indent=1))
 
 
 if __name__ == "__main__":

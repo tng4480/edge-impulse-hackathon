@@ -1,0 +1,76 @@
+{
+ "definition": "val-chosen policies; device-realistic (no temperature); NEWS2 on HR, SpO2, RR",
+ "validation_budget_hours_in_alert": 0.156,
+ "news2_val": {
+  "flagged_before_onset": 0.783,
+  "false_alerts_per_patient_day": 1.58,
+  "nonsepsis_hours_in_alert": 0.156,
+  "median_first_alert_hours_before_onset": 18.5
+ },
+ "news2_test": {
+  "flagged_before_onset": 0.731,
+  "false_alerts_per_patient_day": 1.58,
+  "nonsepsis_hours_in_alert": 0.152,
+  "median_first_alert_hours_before_onset": 17.0
+ },
+ "bare_cutoff_equal_alarm_time": {
+  "policy": {
+   "t_on": 0.64,
+   "t_off": 0.64,
+   "k": 1,
+   "max_len": 999
+  },
+  "validation": {
+   "flagged_before_onset": 0.582,
+   "false_alerts_per_patient_day": 0.52,
+   "nonsepsis_hours_in_alert": 0.117,
+   "median_first_alert_hours_before_onset": 18.0
+  },
+  "test": {
+   "flagged_before_onset": 0.504,
+   "false_alerts_per_patient_day": 0.53,
+   "nonsepsis_hours_in_alert": 0.11,
+   "median_first_alert_hours_before_onset": 18.0
+  }
+ },
+ "best_policy_equal_alarm_time": {
+  "policy": {
+   "t_on": 0.55,
+   "t_off": 0.55,
+   "k": 3,
+   "max_len": 6
+  },
+  "validation": {
+   "flagged_before_onset": 0.625,
+   "false_alerts_per_patient_day": 0.78,
+   "nonsepsis_hours_in_alert": 0.149,
+   "median_first_alert_hours_before_onset": 21.0
+  },
+  "test": {
+   "flagged_before_onset": 0.607,
+   "false_alerts_per_patient_day": 0.79,
+   "nonsepsis_hours_in_alert": 0.149,
+   "median_first_alert_hours_before_onset": 20.0
+  }
+ },
+ "best_policy_equal_separate_alerts": {
+  "policy": {
+   "t_on": 0.49,
+   "t_off": 0.49,
+   "k": 3,
+   "max_len": 6
+  },
+  "validation": {
+   "flagged_before_onset": 0.755,
+   "false_alerts_per_patient_day": 1.17,
+   "nonsepsis_hours_in_alert": 0.23,
+   "median_first_alert_hours_before_onset": 21.0
+  },
+  "test": {
+   "flagged_before_onset": 0.733,
+   "false_alerts_per_patient_day": 1.17,
+   "nonsepsis_hours_in_alert": 0.229,
+   "median_first_alert_hours_before_onset": 22.0
+  }
+ }
+}

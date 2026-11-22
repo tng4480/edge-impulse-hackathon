@@ -11,6 +11,8 @@ class SamsungSensors(context: Context) {
     val hr = Reading()
     val spo2 = Reading()
     val skin = Reading()
+    val ambient = Reading()
+    val ibi = IbiBuffer()
 
     val hrStatus = "Samsung SDK not in this build"
     val skinStatus = "unavailable (Samsung SDK .aar not in app/libs)"

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nurse queue · Sepsis monitor</title>
+<link rel="stylesheet" href="/ui.css">
+<script src="/ui.js"></script>
+<style>
+  /* Three panes after the UI Atlas "Casework and service" study: queue, selected task, context.
+     Shared tokens and components live in ui.css. */
+  .who { display:flex; gap:12px 24px; flex-wrap:wrap; align-items:center; margin-top:16px; }
+  .who label { display:flex; align-items:center; gap:10px; }
+  .who .push { margin-left:auto; }
+  .casework { display:grid; grid-template-columns:300px minmax(0,1fr) 270px; margin-top:14px; padding:0; overflow:hidden; }
+  .casework > * { min-width:0; }
+  .case-list { border-right:1px solid var(--line); background:var(--paper-2); }
+  .case-list h2, .case-context h2 { font:500 12.5px var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+                                    padding:16px 18px 10px; }
+  .case-item { display:block; width:100%; text-align:left; background:transparent; border:0; border-left:4px solid transparent;
+               border-top:1px solid var(--line); padding:14px 16px; cursor:pointer; min-height:44px; }
+  .case-item:hover { background:var(--card); }
+  .case-item.selected { background:var(--card); border-left-color:var(--ink); }
+  .case-item .pri { font:600 12px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--warn); }
+  .case-item.urgent .pri { color:var(--bad); }
+  .case-item b { font-weight:600; margin:4px 0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .case-item small { color:var(--muted); font-size:13.5px; }
+  .case-main { padding:22px 24px; }
+  .case-main h3 { font:600 21px/1.4 var(--font); margin:12px 0 6px; }
+  .tags { display:flex; gap:6px; flex-wrap:wrap; }
+  .actions { border-top:1px dashed var(--line-2); margin-top:18px; padding-top:4px; }
+  .actions input[type=text] { flex:1 1 240px; }
+  .case-context { border-left:1px solid var(--line); padding-bottom:18px; }
+  .case-context dl { margin:0 18px; display:grid; grid-template-columns:auto 1fr; gap:8px 12px; font-size:15px; }
+  .case-context dt { color:var(--muted); }
+  .case-context dd { margin:0; text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+  .case-context .block { border-top:1px solid var(--line); margin-top:16px; padding:14px 18px 0; }
+  .case-context .btn { width:100%; margin-top:8px; }
+  .qr-box svg { display:block; background:#fff; padding:8px; border-radius:8px; width:100%; height:auto; margin-top:10px; }
+  .qr-raw { font:12px var(--mono); word-break:break-all; color:var(--muted); margin-top:8px; max-height:64px; overflow:auto; }
+  .empty { text-align:center; padding:48px 16px; color:var(--ink-2); }
+  .empty strong { display:block; font:400 30px var(--display); color:var(--ink); margin-bottom:6px; }
+  .audit { margin-top:14px; font:13px var(--mono); color:var(--muted); }
+  .audit.bad { color:var(--bad); font-weight:600; }
+  @media (max-width:1100px) {
+    .casework { grid-template-columns:260px minmax(0,1fr); }
+    .case-context { grid-column:2; border-left:0; border-top:1px solid var(--line); }
+  }
+  @media (max-width:760px) {
+    .casework { grid-template-columns:1fr; }
+    .case-list { border-right:0; border-bottom:1px solid var(--line); }
+    .case-context { grid-column:auto; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <a class="brand" href="/">Sepsis monitor</a>
+    <nav class="nav" aria-label="Pages">
+      <a href="/">Monitor</a>
+      <a href="/handoff" aria-current="page">Nurse queue</a>
+      <a href="/stress">Stress lab</a>
+      <a href="/pat">Pulse timing</a>
+    </nav>
+    <div class="top-end">
+      <span class="status" id="status" role="status">connecting…</span>
+      <button class="theme-btn" id="theme_btn" type="button" onclick="toggleTheme()">Dark theme</button>
+    </div>
+  </header>
+
+  <div class="who">
+    <label>Your name (recorded on accept)
+      <input type="text" id="nurse_name" placeholder="e.g. Sam" autocomplete="name" style="width:200px">
+    </label>
+    <label class="push"><input type="checkbox" id="show_all"> Show resolved and cancelled</label>
+  </div>
+  <div class="err" id="err" role="alert"></div>
+
+  <div class="card casework">
+    <nav class="case-list" aria-label="Tasks"><h2>Queue</h2><div id="case_list"></div></nav>
+    <section class="case-main" id="tasks" aria-live="polite"></section>
+    <aside class="case-context" id="case_context"></aside>
+  </div>
+  <div class="audit" id="audit"></div>
+</main>
+
+<script>
+const hm = ts => ts ? new Date(ts * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '–';
+const qrOpen = new Map();
+let selectedId = null;
+
+try { $('nurse_name').value = localStorage.getItem('sepsis_nurse_name') || ''; } catch (e) { /* storage blocked */ }
+$('nurse_name').addEventListener('input', e => { try { localStorage.setItem('sepsis_nurse_name', e.target.value); } catch (_) {} });
+$('show_all').addEventListener('change', refresh);
+
+async function api(path, body) {
+  $('err').textContent = '';
+  const opts = body !== undefined
+    ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}
+    : {};
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $('err').textContent = data.error || (data.errors && data.errors.join('; ')) || ('HTTP ' + r.status);
+    throw new Error($('err').textContent);
+  }
+  return data;
+}
+
+async function acceptTask(id) {
+  const nurse = $('nurse_name').value.trim();
+  if (!nurse) { $('err').textContent = 'Enter your name first before accepting a task.'; $('nurse_name').focus(); return; }
+  await api(`/api/handoff/${id}/accept`, {nurse});
+  refresh();
+}
+
+async function resolveTask(id) {
+  const action = ($(`act_${id}`)?.value || '').trim();
+  const outcome = $(`out_${id}`)?.value || 'other';
+  if (!action) { $('err').textContent = 'Enter a short action note before resolving.'; $(`act_${id}`)?.focus(); return; }
+  await api(`/api/handoff/${id}/resolve`, {action, outcome});
+  refresh();
+}
+
+async function toggleQr(id) {
+  if (qrOpen.has(id)) { qrOpen.delete(id); renderLast(); return; }
+  const data = await api(`/api/fhir/${id}/qr`);
+  qrOpen.set(id, data);
+  renderLast();
+}
+
+function selectTask(id) { selectedId = id; renderLast(); }
+
+const TAG = {pending:'bad', accepted:'model', resolved:'ok', urgent:'bad', review:'warn'};
+const tagsFor = t => [
+  `<span class="tag fill ${TAG[t.priority] || ''}">${esc(t.priority)}</span>`,
+  `<span class="tag fill ${TAG[t.status] || ''}">${esc(t.status)}</span>`,
+  `<span class="tag">${esc(t.source)} · ${esc(t.kind)}</span>`,
+  t.replay ? `<span class="tag fill replay">REPLAY (not a live patient)</span>` : '',
+].join('');
+
+function renderListItem(t) {
+  const s = t.sbar || {};
+  const on = t.id === selectedId;
+  return `<button class="case-item ${esc(t.priority)}${on ? ' selected' : ''}" type="button"
+      onclick="selectTask('${esc(t.id)}')"${on ? ' aria-current="true"' : ''}>
+    <span class="pri">${esc(t.priority)} · ${esc(t.status)}${t.replay ? ' · replay' : ''}</span>
+    <b>${esc(s.situation || t.kind)}</b>
+    <small>opened ${hm(t.created_at)}${t.accepted_by ? ' · Nurse ' + esc(t.accepted_by) : ''}</small>
+  </button>`;
+}
+
+function renderDetail(t) {
+  const s = t.sbar || {};
+  const assess = Array.isArray(s.assessment) ? s.assessment : (s.assessment ? [s.assessment] : []);
+  const id = esc(t.id);
+  let controls = '';
+  if (t.status === 'pending') {
+    controls = `<button class="btn" type="button" onclick="acceptTask('${id}')">Accept task</button>`;
+  } else if (t.status === 'accepted') {
+    controls = `
+      <input type="text" id="act_${id}" placeholder="Action taken (e.g. Phoned, advised 111)" aria-label="Action taken">
+      <select id="out_${id}" aria-label="Outcome">
+        <option value="advised_111">Advised 111</option>
+        <option value="call_999">Call 999</option>
+        <option value="home_visit">Home visit</option>
+        <option value="no_action">No action needed</option>
+        <option value="other">Other</option>
+      </select>
+      <button class="btn ok" type="button" onclick="resolveTask('${id}')">Resolve task</button>`;
+  }
+  return `<div class="tags">${tagsFor(t)}</div>
+    <h3>${esc(s.situation || t.kind)}</h3>
+    <div class="meta">
+      ${t.accepted_by ? `Accepted by <b>Nurse ${esc(t.accepted_by)}</b> at ${hm(t.accepted_at)}` : 'Waiting for a nurse to accept'}
+      ${t.wearer_ack_at ? ` · wearer saw alert at ${hm(t.wearer_ack_at)}` : ''}
+      ${t.resolved_at ? ` · closed ${hm(t.resolved_at)}: ${esc(t.action || '')}${t.outcome ? ' (' + esc(t.outcome) + ')' : ''}` : ''}
+    </div>
+    ${s.background ? `<div class="sbar"><b>B</b><div>${esc(s.background)}</div></div>` : ''}
+    ${assess.length ? `<div class="sbar"><b>A</b><ul>${assess.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
+    ${s.recommendation ? `<div class="sbar"><b>R</b><div>${esc(s.recommendation)}</div></div>` : ''}
+    ${controls ? `<div class="row actions">${controls}</div>` : ''}`;
+}
+
+function renderContext(t) {
+  const snap = t.snapshot || {};
+  const v = snap.vitals || {}, n2 = snap.news2 || {}, m = snap.model || {};
+  const row = (k, label, unit) => {
+    const x = v[k];
+    const val = !x || x.v == null ? '–' : `${esc(x.v)}${unit}`;
+    const age = x && x.v != null && x.age_s != null ? ` <span class="src">(${esc(x.age_s)}s ago)</span>` : '';
+    return `<dt>${label}</dt><dd>${val}${age}</dd>`;
+  };
+  const qr = qrOpen.get(t.id);
+  const id = esc(t.id);
+  return `<h2>At handoff</h2>
+    <dl>
+      ${row('hr', 'Heart rate', ' bpm')}${row('spo2', 'SpO₂', '%')}${row('rr', 'Resp. rate', '/min')}${row('temp', 'Temperature', '°C')}
+      <dt>NEWS2</dt><dd>${esc(n2.score ?? '–')}</dd>
+      <dt>Model</dt><dd>${m.risk != null ? Math.round(m.risk) + '%' : '–'}</dd>
+    </dl>
+    <div class="block">
+      <div class="meta">Task <code>${id}</code><br>opened ${hm(t.created_at)}</div>
+      <a class="btn ghost small" href="/api/fhir/${id}" target="_blank" rel="noopener">${icon('file-code')}Open FHIR R4 JSON</a>
+      <button class="btn ghost small" type="button" onclick="toggleQr('${id}')">${icon('qrcode')}${qr ? 'Hide paramedic QR' : 'Show paramedic QR'}</button>
+      ${qr ? `<div class="qr-box">
+        <div class="meta"><b>Paramedic FHIR R4 handoff</b> · ${qr.inline ? `offline inline payload (${qr.chars} chars)` : `LAN URL fallback (${qr.chars} chars)`}</div>
+        ${qr.svg ? qr.svg : ''}
+        <div class="qr-raw">${esc(qr.payload)}</div>
+      </div>` : ''}
+    </div>`;
+}
+
+let lastData = null;
+function renderLast() {
+  if (!lastData) return;
+  const list = lastData.tasks || [];
+  if (!list.some(t => t.id === selectedId)) {
+    const open = list.find(t => t.status === 'pending') || list.find(t => t.status === 'accepted') || list[0];
+    selectedId = open ? open.id : null;
+  }
+  const t = list.find(x => x.id === selectedId);
+  // The queue redraws every 2 s; keep what the nurse is typing and where the cursor is.
+  const kept = [...$('tasks').querySelectorAll('input[id], select[id]')].map(el => [el.id, el.value]);
+  const focused = document.activeElement && $('tasks').contains(document.activeElement) ? document.activeElement.id : null;
+  const caret = focused && document.activeElement.selectionStart;
+  $('case_list').innerHTML = list.length ? list.map(renderListItem).join('') : '<p class="src" style="padding:0 18px 16px">Empty</p>';
+  $('tasks').innerHTML = t ? renderDetail(t)
+    : '<div class="empty"><strong>No tasks in this view</strong>Alerts from the monitor, pathway rules, or "I feel unwell" appear here automatically.</div>';
+  $('case_context').innerHTML = t ? renderContext(t) : '';
+  for (const [id, value] of kept) { const el = $(id); if (el) el.value = value; }
+  if (focused && $(focused)) {
+    $(focused).focus();
+    if (caret != null && $(focused).setSelectionRange) $(focused).setSelectionRange(caret, caret);
+  }
+  const a = lastData.audit || {};
+  $('audit').className = 'audit' + (a.ok ? '' : ' bad');
+  $('audit').textContent = `Audit chain: ${a.ok ? 'verified' : 'TAMPER DETECTED'} · ${a.n_rows ?? 0} append-only entries · head ${(a.head || '').slice(0, 12)}`;
+}
+
+async function refresh() {
+  try {
+    const all = $('show_all').checked ? '?all=1' : '';
+    lastData = await api('/api/handoff' + all);
+    renderLast();
+    $('status').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    $('status').textContent = 'board unreachable';
+  }
+}
+
+setInterval(refresh, 2000);
+refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse timing · Sepsis monitor</title>
+<link rel="stylesheet" href="/ui.css">
+<script src="/ui.js"></script>
+<style>
+  /* Page-only layout. Shared tokens and components live in ui.css. */
+  .lead { font:400 30px/1.2 var(--display); margin:18px 0 6px; max-width:60ch; }
+  canvas { width:100%; height:150px; display:block; margin-top:8px; }
+  .warn { color:var(--warn); }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+  .key { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:6px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <a class="brand" href="/">Sepsis monitor</a>
+    <nav class="nav" aria-label="Pages">
+      <a href="/">Monitor</a>
+      <a href="/handoff">Nurse queue</a>
+      <a href="/stress">Stress lab</a>
+      <a href="/pat" aria-current="page">Pulse timing</a>
+    </nav>
+    <div class="top-end">
+      <span class="status">Context only, not scored</span>
+      <button class="theme-btn" id="theme_btn" type="button" onclick="toggleTheme()">Dark theme</button>
+    </div>
+  </header>
+
+  <p class="lead">The delay from the ECG heartbeat to the pulse reaching the wrist, from one Galaxy Watch check.</p>
+
+  <div class="grid">
+    <div class="card"><div class="eyebrow"><i data-icon="activity"></i>Pulse arrival time</div>
+      <div class="val"><span id="pat">--</span><span class="unit">ms</span></div>
+      <div class="src">median of recent beats</div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="clipboard-list"></i>Change this session</div>
+      <div class="val"><span id="delta">--</span><span class="unit">ms</span></div>
+      <div class="src">from the start of this session</div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="heartbeat"></i>Heart rate</div>
+      <div class="val"><span id="hr">--</span><span class="unit">bpm</span></div>
+      <div class="src">beats per minute</div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="device-watch"></i>Finger</div>
+      <div class="val"><span id="finger">--</span></div>
+      <div class="src" id="fingerNote">finger on the top button</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="eyebrow"><span class="key" style="background:var(--warn)"></span>ECG, band-passed, last 8 s</div>
+    <div class="src">Marks show detected beats.</div>
+    <canvas id="ecg" aria-label="ECG trace"></canvas>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="eyebrow"><span class="key" style="background:var(--replay)"></span>Pulse wave at the wrist, green light</div>
+    <div class="src">Marks show where the pulse arrives.</div>
+    <canvas id="ppg" aria-label="Pulse wave trace"></canvas>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="desc" id="status" style="margin-top:0">Waiting for a check.</div>
+    <div class="desc">To try it: on the watch, put a finger of the other hand on the top button and keep still for 30 s. Raise your arm above your heart and watch the number move.</div>
+    <div class="actions">
+      <button class="btn replay" id="demo" type="button">Replay a recorded check</button>
+      <button class="btn ghost" id="reset" type="button">Start a new session</button>
+    </div>
+  </div>
+
+  <div class="footer">Context only. This delay also depends on arm height, posture and movement. It is not a blood pressure and is not used to score risk. Not a medical device.</div>
+</main>
+<script>
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function draw(canvas, t, y, marks, color) {
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, w, h);
+  g.strokeStyle = css('--line-2'); g.lineWidth = 1; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+  if (!t || t.length < 2) return;
+  const lo = Math.min(...y), hi = Math.max(...y), span = (hi - lo) || 1;
+  const X = v => (v + 8) / 8 * w, Y = v => h - 8 - (v - lo) / span * (h - 16);
+  g.strokeStyle = color; g.lineWidth = 2; g.lineJoin = 'round'; g.beginPath();
+  t.forEach((v, i) => i ? g.lineTo(X(v), Y(y[i])) : g.moveTo(X(v), Y(y[i])));
+  g.stroke();
+  g.strokeStyle = css('--model'); g.lineWidth = 2;
+  (marks || []).forEach(m => { g.beginPath(); g.moveTo(X(m), 4); g.lineTo(X(m), h - 4); g.stroke(); });
+}
+
+async function poll() {
+  try {
+    const d = await (await fetch('/api/pat')).json();
+    $('pat').textContent = d.pat_ms == null ? '--' : Math.round(d.pat_ms);
+    $('delta').textContent = d.delta_ms == null ? '--' : (d.delta_ms > 0 ? '+' : '') + Math.round(d.delta_ms);
+    $('hr').textContent = d.hr == null ? '--' : Math.round(d.hr);
+    $('finger').textContent = d.finger == null ? '--' : (d.finger ? 'On' : 'Off');
+    $('status').textContent = d.active ? d.note : (d.age_s == null ? 'Waiting for a check.' : 'Check ended ' + Math.round(d.age_s) + ' s ago. Showing the last reading.');
+    $('status').className = 'desc' + (d.active && !d.finger ? ' warn' : '');
+    const w = d.wave;
+    draw($('ecg'), w && w.ecg_t, w && w.ecg, w && w.r, css('--warn'));
+    draw($('ppg'), w && w.ppg_t, w && w.ppg, w && w.foot, css('--replay'));
+  } catch (e) { $('status').textContent = 'Cannot reach the board.'; }
+}
+$('demo').onclick = () => fetch('/api/pat/demo', { method: 'POST', body: '{}' });
+$('reset').onclick = () => fetch('/api/pat/reset', { method: 'POST', body: '{}' });
+setInterval(poll, 500); poll();
+</script>
+</body>
+</html>

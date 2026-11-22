@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hold to confirm (UI Atlas "Hold to confirm"): the "fill" layer grows left to right while the
+     button is held; MainActivity drives its level from 0 to 10000. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="99dp" />
+            <solid android:color="@color/bad" />
+        </shape>
+    </item>
+    <item android:id="@+id/fill">
+        <clip android:clipOrientation="horizontal" android:gravity="left">
+            <shape android:shape="rectangle">
+                <corners android:radius="99dp" />
+                <solid android:color="@color/paper" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

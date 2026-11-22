@@ -106,3 +106,15 @@ def estimate_rr(ax, ay, az, fs=FS):
     rr = 60.0 * fs / lag
     return {"rr": round(rr, 1), "reason": "ok", "motion_g": round(motion, 4),
             "amplitude_g": round(amp, 5), "strength": round(strength, 2)}
+
+
+def motion_level(ax, ay, az, fs=FS, seconds=10):
+    """Fast-motion level (std of the magnitude minus its 0.7 s moving average, in g) over the last
+    `seconds`. Returns None until there is enough data. Used to tell "resting" from "moving"."""
+    n = int(seconds * fs)
+    ax, ay, az = ax[-n:], ay[-n:], az[-n:]
+    if len(ax) < n * 0.6:
+        return None
+    mag = [(x * x + y * y + z * z) ** 0.5 for x, y, z in zip(ax, ay, az)]
+    low = _moving_average(mag, fs * 0.7)
+    return _std([m - l for m, l in zip(mag, low)])

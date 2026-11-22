@@ -33,6 +33,8 @@ class SamsungSensors(context: Context) {
     val hr = Reading()
     val spo2 = Reading()
     val skin = Reading()
+    val ambient = Reading()
+    val ibi = IbiBuffer()
 
     @Volatile var hrStatus = "Samsung: not started"
         private set
@@ -178,6 +180,14 @@ class SamsungSensors(context: Context) {
     private val hrListener = object : HealthTracker.TrackerEventListener {
         override fun onDataReceived(list: MutableList<DataPoint>) {
             for (dp in list) {
+                // IBIs: in a batch only the first data point carries them (others are null).
+                // Keep only intervals whose IBI status is 0 (normal).
+                val ibis = dp.getValue(ValueKey.HeartRateSet.IBI_LIST)
+                val ibiStatus = dp.getValue(ValueKey.HeartRateSet.IBI_STATUS_LIST)
+                if (ibis != null && ibiStatus != null) {
+                    ibis.zip(ibiStatus).forEach { (ms, st) -> if (st == 0 && ms != null && ms > 0) ibi.add(ms) }
+                }
+
                 val status = dp.getValue(ValueKey.HeartRateSet.HEART_RATE_STATUS)
                 val bpm = dp.getValue(ValueKey.HeartRateSet.HEART_RATE)
                 if (status == 1 && bpm != null && bpm > 0) {
@@ -204,6 +214,9 @@ class SamsungSensors(context: Context) {
                 val celsius = dp.getValue(ValueKey.SkinTemperatureSet.OBJECT_TEMPERATURE)
                 if (status == 0 && celsius != null && !celsius.isNaN()) {
                     skin.set(celsius.toDouble())
+                    dp.getValue(ValueKey.SkinTemperatureSet.AMBIENT_TEMPERATURE)
+                        ?.takeIf { !it.isNaN() }
+                        ?.let { ambient.set(it.toDouble()) }
                     skinStatus = (if (onDemand) "Samsung on-demand" else "Samsung continuous") + ", last ${clock()}"
                 } else {
                     skinStatus = "Samsung skin temp invalid (status $status)"

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stress lab · Sepsis monitor</title>
+<link rel="stylesheet" href="/ui.css">
+<script src="/ui.js"></script>
+<style>
+  /* Page-only layout. Shared tokens and components live in ui.css. */
+  .pair { margin-top:14px; }
+  .pair h2, .card h2 { font:400 28px/1.15 var(--display); margin:10px 0 2px; }
+  .stats { display:grid; grid-template-columns:1fr auto; gap:8px 16px; margin-top:12px; font-size:15px;
+           border-top:1px dashed var(--line-2); padding-top:12px; }
+  .stats .k { color:var(--ink-2); }
+  .stats .v { font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  .worse { color:var(--bad); } .better { color:var(--ok); }
+  .worse::before { content:'▼ '; } .better::before { content:'▲ '; }
+  .d { color:var(--muted); font-size:13px; margin-left:4px; }
+  .lead { font:400 30px/1.2 var(--display); margin:0 0 14px; max-width:52ch; }
+  .firsts { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px; }
+  .first { border-top:2px solid var(--ink); padding-top:8px; }
+  .first .k { font:500 11px/1.2 var(--mono); text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
+  .first .big { font:400 48px/1 var(--display); margin-top:6px; font-variant-numeric:tabular-nums; }
+  .first .sub { font-size:13px; color:var(--ink-2); margin-top:2px; }
+  .first .big.worse { color:var(--bad); } .first .big.better { color:var(--ok); }
+  .first .big.worse::before, .first .big.better::before { content:''; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <a class="brand" href="/">Sepsis monitor</a>
+    <nav class="nav" aria-label="Pages">
+      <a href="/">Monitor</a>
+      <a href="/handoff">Nurse queue</a>
+      <a href="/stress" aria-current="page">Stress lab</a>
+      <a href="/pat">Pulse timing</a>
+    </nav>
+    <div class="top-end">
+      <span class="status">What-if stress lab</span>
+      <button class="theme-btn" id="theme_btn" type="button" onclick="toggleTheme()">Dark theme</button>
+    </div>
+  </header>
+  <div class="banner replay always">Simulated stressor on a recorded ICU case</div>
+
+  <div class="card" style="margin-top:14px">
+    <p class="lead">What if a measurement is wrong? Break one reading in a recorded ICU case and watch the model and the NEWS2 rule re-score it hour by hour.</p>
+    <div class="eyebrow">Recorded case (PhysioNet 2019, held out) and stressor</div>
+    <div class="row">
+      <select id="case_sel" aria-label="Case"></select>
+      <select id="sc_sel" aria-label="Stressor"></select>
+    </div>
+    <div class="desc" id="sc_desc"></div>
+    <div class="err" id="err" role="alert"></div>
+  </div>
+
+  <div class="pair">
+    <div class="card"><span class="tag line-replay">Simulated stressor on a recorded ICU case</span>
+      <h2>Baseline (recorded vitals)</h2>
+      <svg class="chart" id="chart_base" viewBox="0 0 600 244" role="img" aria-label="Baseline timeline"></svg>
+      <div class="stats" id="stats_base"></div></div>
+    <div class="card"><span class="tag line-replay">Simulated stressor on a recorded ICU case</span>
+      <h2 id="stress_title">Stressed</h2>
+      <svg class="chart" id="chart_stress" viewBox="0 0 600 244" role="img" aria-label="Stressed timeline"></svg>
+      <div class="stats" id="stats_stress"></div></div>
+  </div>
+  <div class="legend">
+    <span><b class="sw-shade"></b>hours the stressor changed a reading</span>
+    <span>Model score 0 to 100; NEWS2 scaled from 0 to 9. Bars under each chart mark alert hours (NEWS2: 5+ or any 3).</span>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <span class="tag line-replay">Simulated stressor on a recorded ICU case</span>
+    <h2>Across all held-out test patients</h2>
+    <div class="src" id="sum_note">loading…</div>
+    <div class="tbl"><table id="sum_tbl"></table></div>
+    <div class="desc">Change from baseline in brackets (percentage points, or alerts per day). Flagged = alert in the 24 h strictly before onset. Walk burst is applied to non-sepsis patients only. These illustrate failure modes; they are not corrections. SpO₂ over-read follows Sjoding et al., NEJM 2020 (doi 10.1056/NEJMc2029240), as a fixed offset.</div>
+  </div>
+
+  <div class="footer">Simulated stressor on a recorded ICU case. Retrospective ICU data; not validated at home; not a medical device.</div>
+</main>
+<script>
+let CAT = null;
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `${url}: HTTP ${r.status}`);
+  return j;
+}
+
+function fillScenarios() {
+  const c = CAT.cases.find(c => c.id === $('case_sel').value);
+  const prev = $('sc_sel').value;
+  const ok = CAT.scenarios.filter(s => s.id !== 'baseline' && s.applies_to.includes(c.kind));
+  $('sc_sel').innerHTML = ok.map(s => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
+  if (ok.some(s => s.id === prev)) $('sc_sel').value = prev;
+}
+
+// Annotated chart (UI Atlas "Annotated line chart"): model line highlighted, NEWS2 grey, labels at the line ends.
+function drawChart(svg, d) {
+  const W = 600, H = 244, L = 56, R = 74, T = 22, B = 76;
+  const start = d.start_hour, end = d.end_hour, span = Math.max(1, end - start);
+  const cw = (W - L - R) / (span + 1);
+  const x = h => L + (h - start + 0.5) * cw;
+  const y = v => T + (1 - v / 100) * (H - T - B);
+  let g = '';
+  for (const p of d.timeline) if (p.changed)
+    g += `<rect x="${x(p.hour) - cw / 2}" y="${T}" width="${cw}" height="${H - T - 18}" fill="var(--shade)"/>`;
+  for (const v of [0, 50, 100]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  g += `<line x1="${L}" x2="${W-R}" y1="${y(d.threshold)}" y2="${y(d.threshold)}" stroke="var(--ink)" stroke-opacity=".45" stroke-dasharray="4 3"/>`;
+  const n2 = d.timeline.filter(p => p.news2 != null).map(p => [x(p.hour), y(p.news2 / 9 * 100), p.news2]);
+  const mr = d.timeline.filter(p => p.risk != null).map(p => [x(p.hour), y(p.risk), p.risk]);
+  g += svgLine(n2, 'var(--other)', 1.8);
+  g += svgLine(mr, 'var(--model)', 3.2);
+  // Labels at the right end of each line, pushed apart so the cutoff, NEWS2 and Model labels never overlap.
+  const labs = [{ y: y(d.threshold), t: 'cutoff', st: '' }];
+  if (n2.length) labs.push({ y: n2.at(-1)[1], t: 'NEWS2', st: 'fill:var(--muted)' });
+  if (mr.length) labs.push({ y: mr.at(-1)[1], t: 'Model', st: 'fill:var(--model);font-weight:600' });
+  labs.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 15) labs[i].y = labs[i - 1].y + 15;
+  for (const l of labs) g += `<text x="${W-R+6}" y="${l.y + 4}" style="${l.st}">${l.t}</text>`;
+  // alert marker rows
+  const rm = H - B + 14, rn = H - B + 32;
+  g += `<text x="${L-8}" y="${rm+8}" text-anchor="end">model</text><text x="${L-8}" y="${rn+8}" text-anchor="end">NEWS2</text>`;
+  for (const p of d.timeline) {
+    const w = Math.max(2, cw - 1.5);
+    g += `<rect x="${x(p.hour) - w/2}" y="${rm}" width="${w}" height="9" rx="1.5" fill="${p.model_alert ? 'var(--model)' : 'var(--line)'}"/>`;
+    g += `<rect x="${x(p.hour) - w/2}" y="${rn}" width="${w}" height="9" rx="1.5" fill="${p.news2_alert ? 'var(--ink-2)' : 'var(--line)'}"/>`;
+  }
+  if (d.onset_hour != null && d.onset_hour >= start && d.onset_hour <= end)
+    g += `<line x1="${x(d.onset_hour)}" x2="${x(d.onset_hour)}" y1="${T-6}" y2="${rn + 9}" stroke="var(--bad)" stroke-width="2"/><text x="${x(d.onset_hour)-5}" y="${T-6}" text-anchor="end" style="fill:var(--bad);font-weight:600">sepsis onset</text>`;
+  const step = Math.max(1, Math.round(span / 6));
+  for (let h = start; h <= end; h += step) g += `<text x="${x(h)}" y="${H-3}" text-anchor="middle">h${h}</text>`;
+  svg.innerHTML = g;
+}
+
+function stats(el, d, base) {
+  // First alert, as big text: hours before onset for sepsis cases, or the hour of a (false) alert otherwise.
+  const firstText = s => {
+    if (s.first_alert_hour == null) return ['None', d.onset_hour == null ? 'no alert, as there should not be' : 'no alert before onset'];
+    if (d.onset_hour == null) return ['h' + s.first_alert_hour, 'a false alert: this case never became septic'];
+    if (s.warning_hours_before_onset != null) return [s.warning_hours_before_onset + ' h', 'before sepsis onset'];
+    return ['h' + s.first_alert_hour, 'outside the 24 h window before onset'];
+  };
+  const cmp = (a, b, lowerIsWorse) => {
+    if (!base || a === b) return '';
+    const worse = lowerIsWorse ? (a ?? -1) < (b ?? -1) : a > b;
+    return worse ? 'worse' : 'better';
+  };
+  let firsts = '', rows = '';
+  for (const [k, name] of [['model', 'Model'], ['news2', 'NEWS2 rule']]) {
+    const s = d.summary[k], b = base && base.summary[k];
+    const warnCls = d.onset_hour == null ? '' : cmp(s.warning_hours_before_onset, b && b.warning_hours_before_onset, true);
+    const hrsCls = d.onset_hour == null ? cmp(s.hours_in_alert, b && b.hours_in_alert, false) : '';
+    const [big, sub] = firstText(s);
+    firsts += `<div class="first"><div class="k">${name}: first alert</div><div class="big ${warnCls}">${esc(big)}</div><div class="sub">${esc(sub)}</div></div>`;
+    rows += `<div class="k">${name}: hours in alert</div><div class="v ${hrsCls}">${s.hours_in_alert} of ${d.timeline.length} (${s.alert_episodes} episode${s.alert_episodes === 1 ? '' : 's'})</div>`;
+  }
+  el.innerHTML = `<div class="firsts">${firsts}</div>` + rows;
+}
+
+async function show() {
+  $('err').textContent = '';
+  const cid = $('case_sel').value, sid = $('sc_sel').value;
+  const s = CAT.scenarios.find(s => s.id === sid);
+  $('sc_desc').textContent = s ? s.description : '';
+  $('stress_title').textContent = s ? `Stressed: ${s.title}` : 'Stressed';
+  try {
+    const q = sc => `/api/stress?case=${encodeURIComponent(cid)}&scenario=${encodeURIComponent(sc)}`;
+    const [b, st] = await Promise.all([getJSON(q('baseline')), getJSON(q(sid))]);
+    drawChart($('chart_base'), b); stats($('stats_base'), b, null);
+    drawChart($('chart_stress'), st); stats($('stats_stress'), st, b);
+  } catch (e) { $('err').textContent = e.message; }
+  markRow();
+}
+
+function markRow() {
+  document.querySelectorAll('#sum_tbl tr[data-id]').forEach(tr => tr.classList.toggle('sel', tr.dataset.id === $('sc_sel').value));
+}
+
+function drawSummary(S) {
+  const base = S.scenarios.find(s => s.id === 'baseline');
+  const pct = v => v == null ? 'n/a' : Math.round(v * 100) + ' %';
+  const dpp = (v, b) => v == null || b == null || v === b ? '' : `<span class="d">(${(v - b) * 100 > 0 ? '+' : ''}${Math.round((v - b) * 100)})</span>`;
+  const dn = (v, b) => v == null || b == null || v === b ? '' : `<span class="d">(${v - b > 0 ? '+' : ''}${(v - b).toFixed(2)})</span>`;
+  let h = `<tr><th>Scenario</th><th>Model flagged</th><th>NEWS2 flagged</th><th>Model false alerts/day</th><th>NEWS2 false alerts/day</th><th>Model alarm time</th><th>NEWS2 alarm time</th></tr>`;
+  for (const s of S.scenarios) {
+    const m = s.model, n = s.news2, bm = base.model, bn = base.news2;
+    h += `<tr data-id="${esc(s.id)}"><td>${esc(s.title)}</td>` +
+      `<td>${pct(m.flagged_before_onset)}${dpp(m.flagged_before_onset, bm.flagged_before_onset)}</td>` +
+      `<td>${pct(n.flagged_before_onset)}${dpp(n.flagged_before_onset, bn.flagged_before_onset)}</td>` +
+      `<td>${m.false_alerts_per_patient_day ?? 'n/a'}${dn(m.false_alerts_per_patient_day, bm.false_alerts_per_patient_day)}</td>` +
+      `<td>${n.false_alerts_per_patient_day ?? 'n/a'}${dn(n.false_alerts_per_patient_day, bn.false_alerts_per_patient_day)}</td>` +
+      `<td>${pct(m.nonsepsis_hours_in_alert)}${dpp(m.nonsepsis_hours_in_alert, bm.nonsepsis_hours_in_alert)}</td>` +
+      `<td>${pct(n.nonsepsis_hours_in_alert)}${dpp(n.nonsepsis_hours_in_alert, bn.nonsepsis_hours_in_alert)}</td></tr>`;
+  }
+  $('sum_tbl').innerHTML = h;
+  $('sum_note').textContent = `${S.n_sepsis} sepsis and ${S.n_nonsepsis} non-sepsis held-out test patients, model cutoff ${S.threshold}. ${S.label}.`;
+  markRow();
+}
+
+(async function init() {
+  try {
+    CAT = await getJSON('/api/stress');
+    $('case_sel').innerHTML = CAT.cases.map(c => `<option value="${esc(c.id)}">${esc(c.id)} · ${c.kind === 'sepsis' ? 'sepsis' : 'never septic'} · ${esc(c.label)}</option>`).join('');
+    fillScenarios();
+    $('case_sel').onchange = () => { fillScenarios(); show(); };
+    $('sc_sel').onchange = show;
+    show();
+  } catch (e) { $('err').textContent = e.message; }
+  try { drawSummary(await getJSON('/api/stress/summary')); }
+  catch (e) { $('sum_note').textContent = 'Summary not available: ' + e.message; }
+})();
+</script>
+</body>
+</html>

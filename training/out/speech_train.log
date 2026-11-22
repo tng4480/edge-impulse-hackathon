@@ -1,0 +1,4 @@
+features done
+float32 val acc 0.894
+int8 val acc 0.896
+digits.eim 13490296 bytes

@@ -5,7 +5,9 @@ test 476 sepsis, 7422 non-sepsis
  "validation": {
   "news2_rule": {
    "flagged_before_onset": 0.804,
-   "false_alerts_per_patient_day": 1.62
+   "false_alerts_per_patient_day": 1.62,
+   "nonsepsis_hours_in_alert": 0.165,
+   "median_first_alert_hours_before_onset": 18.0
   },
   "same_catch_threshold": 0.55,
   "same_burden_threshold": 0.3,
@@ -17,22 +19,37 @@ test 476 sepsis, 7422 non-sepsis
   "n_nonsepsis": 7422,
   "news2_rule": {
    "flagged_before_onset": 0.761,
-   "false_alerts_per_patient_day": 1.61
+   "false_alerts_per_patient_day": 1.61,
+   "nonsepsis_hours_in_alert": 0.16,
+   "median_first_alert_hours_before_onset": 17.0
   },
   "model_same_catch": {
    "threshold": 0.55,
    "flagged_before_onset": 0.775,
-   "false_alerts_per_patient_day": 0.91
+   "false_alerts_per_patient_day": 0.91,
+   "nonsepsis_hours_in_alert": 0.222,
+   "median_first_alert_hours_before_onset": 20.0
   },
   "model_same_burden": {
    "threshold": 0.3,
    "flagged_before_onset": 0.966,
-   "false_alerts_per_patient_day": 1.46
+   "false_alerts_per_patient_day": 1.46,
+   "nonsepsis_hours_in_alert": 0.639,
+   "median_first_alert_hours_before_onset": 24.0
+  },
+  "model_same_hours_in_alert": {
+   "threshold": 0.61,
+   "flagged_before_onset": 0.695,
+   "false_alerts_per_patient_day": 0.72,
+   "nonsepsis_hours_in_alert": 0.151,
+   "median_first_alert_hours_before_onset": 18.0
   },
   "model_val_15pct_window_threshold": {
    "threshold": 0.614,
    "flagged_before_onset": 0.689,
-   "false_alerts_per_patient_day": 0.71
+   "false_alerts_per_patient_day": 0.71,
+   "nonsepsis_hours_in_alert": 0.146,
+   "median_first_alert_hours_before_onset": 18.0
   }
  }
 }

@@ -13,5 +13,10 @@ object LiveState {
     @Volatile var notes = ""
     @Volatile var message: String? = null
 
+    /** Result of the last "I feel unwell" check-in; the screen gives haptic feedback when it changes. */
+    @Volatile var checkinText: String? = null
+    @Volatile var checkinOk = false
+    @Volatile var checkinAtMs = 0L
+
     fun connected(nowMs: Long) = running && nowMs - lastOkAtMs <= CONNECTED_WINDOW_MS
 }

@@ -57,9 +57,33 @@ class VitalsService : Service() {
                 if (!LiveState.running) stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_CHECKIN -> {
+                sendCheckin(startId)
+                return START_NOT_STICKY
+            }
             else -> startSampling()
         }
         return START_STICKY
+    }
+
+    /**
+     * "I feel unwell": one POST to the board's /api/checkin, separate from the vitals packets.
+     * Works without Start too (then over the default route, and the service stops afterwards).
+     */
+    private fun sendCheckin(startId: Int) {
+        val url = settings.url().substringBeforeLast('/') + "/api/checkin"
+        net.execute {
+            val code = uplink.postOnce(url, CHECKIN_BODY)
+            val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date())
+            LiveState.checkinOk = code in 200..299
+            LiveState.checkinText = when {
+                code == null -> "Not sent: board unreachable. Tap again."
+                code in 200..299 -> "Sent to the nurse team at $time"
+                else -> "Not sent: board replied HTTP $code"
+            }
+            LiveState.checkinAtMs = System.currentTimeMillis()
+            if (!LiveState.running) stopSelf(startId)
+        }
     }
 
     private fun startSampling() {
@@ -146,6 +170,8 @@ class VitalsService : Service() {
         const val ACTION_START = "com.sepsis.watch.START"
         const val ACTION_STOP = "com.sepsis.watch.STOP"
         const val ACTION_SPO2 = "com.sepsis.watch.SPO2"
+        const val ACTION_CHECKIN = "com.sepsis.watch.CHECKIN"
+        private const val CHECKIN_BODY = """{"feel_unwell":true,"by":"wearer"}"""
         private const val CHANNEL_ID = "vitals"
         private const val NOTIFICATION_ID = 1
 

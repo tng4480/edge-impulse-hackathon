@@ -1,0 +1,30 @@
+{
+ "training": {
+  "eight": 600,
+  "five": 600,
+  "four": 600,
+  "nine": 600,
+  "one": 600,
+  "seven": 600,
+  "six": 600,
+  "three": 600,
+  "two": 600,
+  "unknown": 600,
+  "zero": 600,
+  "noise": 600
+ },
+ "testing": {
+  "eight": 120,
+  "five": 120,
+  "four": 120,
+  "nine": 120,
+  "one": 120,
+  "seven": 120,
+  "six": 120,
+  "three": 120,
+  "two": 120,
+  "unknown": 120,
+  "zero": 120,
+  "noise": 120
+ }
+}

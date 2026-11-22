@@ -64,5 +64,14 @@
             android:name=".VitalsService"
             android:exported="false"
             android:foregroundServiceType="health" />
+
+        <!-- Starts one ECG + PPG check (pulse arrival time). Exported so adb can trigger it for demos. -->
+        <receiver
+            android:name=".EcgTriggerReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.sepsis.ECG_CHECK" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

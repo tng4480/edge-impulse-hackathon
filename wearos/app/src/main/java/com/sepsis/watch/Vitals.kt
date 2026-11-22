@@ -27,7 +27,8 @@ class Reading {
 
 /**
  * One sample in the board's JSON contract. Null means "not measured", never a placeholder.
- * `hr` and `skin_temp_c` are current at `t`; `spo2` is a spot measurement taken at `spo2_t`.
+ * `hr`, `skin_temp_c` and `ambient_c` are current at `t`; `spo2` is a spot measurement taken at
+ * `spo2_t`; `ibi_ms` holds the valid inter-beat intervals received since the previous sample.
  */
 data class Snapshot(
     val t: Long,
@@ -35,15 +36,37 @@ data class Snapshot(
     val spo2: Int?,
     val spo2T: Long?,
     val skinTempC: Double?,
+    val ambientC: Double? = null,
+    val ibiMs: List<Int>? = null,
 ) {
-    // Built by hand: org.json writes 34.0 as `34`, and the contract says skin_temp_c is a float.
-    // Every value is a number or null, so nothing needs escaping.
+    // Built by hand: org.json writes 34.0 as `34`, and the contract wants floats for temperatures.
+    // Every value is a number, a list of numbers or null, so nothing needs escaping.
     fun toJson(): String {
-        val skin = skinTempC?.takeIf { it.isFinite() }?.let { String.format(Locale.US, "%.2f", it) } ?: "null"
-        // spo2_t is null exactly when spo2 is null.
+        // spo2_t is null exactly when spo2 is null; an empty IBI list is sent as null.
         val spo2Time = spo2T?.takeIf { spo2 != null }
+        val ibi = ibiMs?.takeIf { it.isNotEmpty() }?.joinToString(",", "[", "]") ?: "null"
         return """{"t":$t,"hr":${hr ?: "null"},"spo2":${spo2 ?: "null"},"spo2_t":${spo2Time ?: "null"},""" +
-            """"skin_temp_c":$skin,"source":"watch"}"""
+            """"skin_temp_c":${celsius(skinTempC)},"ambient_c":${celsius(ambientC)},"ibi_ms":$ibi,"source":"watch"}"""
+    }
+
+    private fun celsius(v: Double?) = v?.takeIf { it.isFinite() }?.let { String.format(Locale.US, "%.2f", it) } ?: "null"
+}
+
+/** Inter-beat intervals collected between send ticks. Sensor callbacks add, the send tick drains. */
+class IbiBuffer {
+    private val intervals = ArrayList<Int>()
+
+    @Synchronized
+    fun add(ms: Int) {
+        if (intervals.size < MAX) intervals.add(ms)
+    }
+
+    /** Everything received since the last call (null if nothing). */
+    @Synchronized
+    fun drain(): List<Int>? = if (intervals.isEmpty()) null else intervals.toList().also { intervals.clear() }
+
+    private companion object {
+        const val MAX = 120 // 5 s at up to ~200 bpm with slack, and a guard if ticks stall
     }
 }
 

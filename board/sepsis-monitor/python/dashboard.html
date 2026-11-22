@@ -4,134 +4,167 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sepsis monitor</title>
+<link rel="stylesheet" href="/ui.css">
+<script src="/ui.js"></script>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mute:#6b7380; --line:#e2e5ea;
-          --ok:#1f8f5f; --warn:#c77d0a; --bad:#c62f3b; --accent:#2457d6; --replay:#6a3fd1; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --card:#1a1f26; --ink:#eef0f3; --mute:#97a0ad; --line:#2a313b;
-            --ok:#47c58f; --warn:#e8a43a; --bad:#ef6670; --accent:#6f95ff; --replay:#a58cff; }
+  /* Page-only layout. Shared tokens and components live in ui.css. */
+  .hero { margin-top:16px; display:grid; grid-template-columns:1.2fr 1fr; gap:0; padding:0; overflow:hidden; }
+  .hero > section { padding:24px; }
+  .hero > section + section { border-left:1px solid var(--line); }
+  .hero .level { grid-column:1/-1; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:18px 24px;
+                 border-bottom:1px solid var(--line); background:var(--paper-2); }
+  .hero .level strong { font:400 40px/1.05 var(--display); letter-spacing:-.01em; }
+  .hero .level .dot { width:18px; height:18px; border-radius:50%; background:var(--muted); flex:none; }
+  .hero[data-level="alert"] { border-color:var(--bad); box-shadow:0 0 0 2px var(--bad); }
+  .hero[data-level="alert"] .level { background:color-mix(in srgb, var(--bad) 12%, var(--card)); }
+  .hero[data-level="alert"] .dot { background:var(--bad); }
+  .hero[data-level="clear"] .dot { background:var(--ok); }
+  .hero[data-level="wait"] .dot { background:var(--warn); }
+  .hero .val { font-size:76px; }
+  .hero .next { grid-column:1/-1; display:flex; align-items:center; gap:12px 20px; flex-wrap:wrap; padding:16px 24px;
+                border-top:1px solid var(--line); }
+  .hero .next p { flex:1 1 320px; font-size:16px; color:var(--ink-2); }
+  .hero .metric { border-top:2px solid var(--ink); padding-top:12px; }
+  #parts { gap:14px; }
+  .chart-title { font:600 20px/1.3 var(--font); margin-top:16px; }
+  .esc { margin-top:14px; border:2px solid var(--bad); }
+  .esc .eyebrow { color:var(--bad); }
+  .vitals .card { min-height:170px; }
+  .ctx { font-size:16px; color:var(--ink); margin-top:6px; }
+  #base > div { margin-top:4px; }
+  .delta { font-variant-numeric:tabular-nums; font-weight:600; }
+  .overrides label { display:flex; flex-direction:column; flex:1 1 180px; }
+  @media (max-width:860px) {
+    .hero { grid-template-columns:1fr; }
+    .hero > section + section { border-left:0; border-top:1px solid var(--line); }
+    .hero .val { font-size:60px; }
+    .hero .level strong { font-size:32px; }
   }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 system-ui,Segoe UI,Roboto,sans-serif; }
-  main { max-width:960px; margin:0 auto; padding:16px; }
-  header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
-  h1 { font-size:20px; margin:0; }
-  .sub { color:var(--mute); font-size:13px; }
-  .banner { margin:14px 0; padding:12px 14px; border-radius:10px; font-weight:600; display:none; }
-  .banner.on { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  #banner.on { background:var(--bad); color:#fff; }
-  #replay_banner.on { background:var(--replay); color:#fff; font-size:18px; }
-  .banner button { background:#fff; color:var(--bad); border:0; border-radius:8px; padding:6px 12px; font-weight:600; cursor:pointer; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:12px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
-  .card.replaying { border-color:var(--replay); }
-  .label { color:var(--mute); font-size:13px; }
-  .val { font-size:40px; font-weight:700; letter-spacing:-.02em; margin:2px 0; font-variant-numeric:tabular-nums; }
-  .unit { font-size:15px; color:var(--mute); font-weight:500; margin-left:4px; }
-  .src { font-size:12px; color:var(--mute); }
-  .pts { display:inline-block; min-width:22px; text-align:center; border-radius:6px; padding:0 6px; font-size:12px; font-weight:700; color:#fff; background:var(--ok); }
-  .pts.p1,.pts.p2 { background:var(--warn); } .pts.p3 { background:var(--bad); }
-  .gauge { height:14px; border-radius:8px; background:var(--line); overflow:hidden; margin-top:8px; position:relative; }
-  .gauge > div { height:100%; width:0; background:var(--ok); transition:width .4s, background .4s; }
-  .gauge .thr { position:absolute; top:0; bottom:0; width:2px; background:var(--ink); opacity:.55; }
-  .wide { grid-column:1/-1; }
-  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:8px; }
-  .row label { display:flex; flex-direction:column; font-size:13px; color:var(--mute); flex:1; min-width:150px; }
-  input[type=range] { width:100%; }
-  select { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:14px; max-width:100%; }
-  button.act { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
-  button.replay { background:var(--replay); }
-  details summary { cursor:pointer; color:var(--mute); font-size:14px; }
-  #chart { width:100%; height:auto; display:block; margin-top:8px; }
-  #chart text { fill:var(--mute); font-size:10px; font-family:inherit; }
-  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--mute); margin-top:4px; }
-  .legend i { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:5px; border-radius:2px; }
-  .footer { margin:16px 0 4px; color:var(--mute); font-size:12px; }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Sepsis early-warning monitor</h1>
-    <div class="sub" id="status">connecting…</div>
+<main class="wrap">
+  <header class="top">
+    <a class="brand" href="/">Sepsis monitor</a>
+    <nav class="nav" aria-label="Pages">
+      <a href="/" aria-current="page">Monitor</a>
+      <a href="/handoff">Nurse queue</a>
+      <a href="/stress">Stress lab</a>
+      <a href="/pat">Pulse timing</a>
+    </nav>
+    <div class="top-end">
+      <span class="status" id="status" role="status">connecting…</span>
+      <button class="theme-btn" id="theme_btn" type="button" onclick="toggleTheme()">Dark theme</button>
+    </div>
   </header>
 
-  <div class="banner" id="replay_banner"><span id="replay_text">REPLAY</span>
-    <span id="replay_hour" style="font-weight:500;font-size:14px"></span></div>
-  <div class="banner" id="banner"><span>Deterioration alert: check the patient.</span>
-    <button onclick="post('/ack')">Acknowledge</button></div>
+  <div class="chips" id="chips"></div>
+  <div class="banner warn" id="offline_banner"><span id="offline_text"></span></div>
+  <div class="banner replay" id="replay_banner"><span id="replay_text">REPLAY</span>
+    <span class="sub" id="replay_hour"></span></div>
+  <div class="banner bad" id="banner" role="alert"><span id="banner_text">Deterioration alert: check the patient.</span>
+    <button class="btn small" type="button" onclick="post('/ack')">Acknowledge alert</button></div>
 
-  <div class="grid">
-    <div class="card"><div class="label">Respiratory rate</div>
-      <div class="val"><span id="rr">–</span><span class="unit">/min</span></div>
-      <div class="src" id="rr_src"></div></div>
-    <div class="card"><div class="label">Heart rate</div>
-      <div class="val"><span id="hr">–</span><span class="unit">bpm</span></div>
-      <div class="src" id="hr_src"></div></div>
-    <div class="card"><div class="label">SpO₂</div>
-      <div class="val"><span id="spo2">–</span><span class="unit">%</span></div>
-      <div class="src" id="spo2_src"></div></div>
-    <div class="card"><div class="label">Temperature (core estimate)</div>
-      <div class="val"><span id="temp">–</span><span class="unit">°C</span></div>
-      <div class="src" id="temp_src"></div></div>
 
-    <div class="card wide">
-      <div class="label">NEWS2 (partial: RR, SpO₂, temperature, heart rate; BP, consciousness and oxygen are not measured)</div>
-      <div class="val"><span id="news">–</span><span class="unit">points · 5+ = urgent response</span></div>
-      <div class="row" id="parts"></div>
-      <div class="gauge"><div id="news_bar"></div></div>
-    </div>
-
-    <div class="card wide" id="risk_card">
-      <div class="label">Edge model risk (trend over the last hours, runs on the board, no cloud)</div>
+  <!-- Risk level first, then why, then what happens next (SBAR card below when escalated) -->
+  <div class="card hero enter" id="risk_card" data-level="wait">
+    <div class="level"><span class="dot"></span><strong id="overall">Connecting to the board</strong></div>
+    <section>
+      <div class="metric eyebrow"><i data-icon="cpu"></i>Edge model risk · runs on the board, no cloud</div>
       <div class="val"><span id="risk">–</span><span class="unit" id="risk_note"></span></div>
-      <div class="gauge"><div id="risk_bar"></div><div class="thr" id="risk_thr" style="display:none"></div></div>
-      <div class="src" id="risk_detail" style="margin-top:6px"></div>
+      <div class="gauge"><div id="risk_bar"></div><div class="thr" id="risk_thr" hidden></div></div>
+      <div class="src" id="risk_detail" style="margin-top:10px"></div>
+    </section>
+    <section>
+      <div class="metric eyebrow"><i data-icon="activity"></i>NEWS2 · partial (RR, SpO₂, temperature, heart rate)</div>
+      <div class="val"><span id="news">–</span><span class="unit">points · 5+ = urgent response</span></div>
+      <div class="gauge"><div id="news_bar"></div></div>
+      <div class="row" id="parts"></div>
+      <div class="src" style="margin-top:8px">Blood pressure, consciousness and oxygen are not measured.</div>
+    </section>
+    <div class="next">
+      <p id="receipt">No check-in or alert has been sent to the nurse team.</p>
+      <button class="btn hold" id="unwell_btn" type="button" aria-describedby="unwell_hint"><i></i><span>Hold: I feel unwell</span></button>
+      <span class="src" id="unwell_hint">Press and hold for one second to tell the nurse team.</span>
     </div>
-
-    <div class="card wide">
-      <div class="label">Replay a recorded ICU patient (PhysioNet 2019, held-out, accelerated)</div>
-      <div class="row">
-        <select id="case_sel"></select>
-        <select id="speed_sel">
-          <option value="3">slow (3 s per hour)</option>
-          <option value="1.5" selected>normal (1.5 s per hour)</option>
-          <option value="0.8">fast (0.8 s per hour)</option>
-        </select>
-        <button class="act replay" onclick="startReplay()">Start replay</button>
-        <button class="act ghost" onclick="post('/replay/stop')">Stop</button>
-      </div>
-      <div id="chart_wrap" style="display:none">
-        <svg id="chart" viewBox="0 0 600 190" preserveAspectRatio="xMidYMid meet"></svg>
-        <div class="legend">
-          <span><i style="background:var(--accent)"></i>model risk %</span>
-          <span><i style="background:var(--warn)"></i>NEWS2 (0–9, scaled)</span>
-          <span><i style="background:var(--ink);opacity:.5"></i>alert threshold</span>
-          <span><i style="background:var(--bad)"></i>sepsis onset</span>
-        </div>
-        <div class="src" id="tl_summary" style="margin-top:6px"></div>
-      </div>
-    </div>
-
-    <div class="card"><div class="label">Room (Modulino Thermo / Light)</div>
-      <div id="env" class="src" style="font-size:15px;color:var(--ink)">–</div></div>
-    <div class="card"><div class="label">Board</div>
-      <div id="board" class="src" style="font-size:14px;color:var(--ink)">–</div></div>
   </div>
 
-  <details class="card" style="margin-top:12px">
+  <div class="card esc" id="esc_card" hidden>
+    <div class="eyebrow">Escalation: alert not acknowledged · carer view (SBAR)</div>
+    <div id="esc_body"></div>
+    <div class="row"><button class="btn bad" type="button" onclick="post('/ack')">Acknowledge and silence</button></div>
+  </div>
+
+  <div class="section-head"><h2>Vitals now</h2><span class="src">Grey dashed cards are stale or missing.</span></div>
+  <div class="grid vitals">
+    <div class="card"><div class="eyebrow"><i data-icon="lungs"></i>Respiratory rate</div>
+      <div class="val"><span id="rr">–</span><span class="unit">/min</span></div>
+      <div class="src" id="rr_src"></div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="heartbeat"></i>Heart rate</div>
+      <div class="val"><span id="hr">–</span><span class="unit">bpm</span></div>
+      <div class="src" id="hr_src"></div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="droplet"></i>SpO₂</div>
+      <div class="val"><span id="spo2">–</span><span class="unit">%</span></div>
+      <div class="src" id="spo2_src"></div></div>
+    <div class="card"><div class="eyebrow"><i data-icon="temperature"></i><span id="temp_label">Skin temperature (wrist)</span></div>
+      <div class="val"><span id="temp">–</span><span class="unit">°C</span></div>
+      <div class="src" id="temp_src"></div></div>
+  </div>
+
+  <div class="section-head"><h2>Replay a recorded patient</h2>
+    <span class="src">PhysioNet 2019, held out, played faster than real time</span></div>
+  <div class="card">
+    <div class="row" style="margin-top:0">
+      <select id="case_sel" aria-label="Recorded case"></select>
+      <select id="speed_sel" aria-label="Replay speed">
+        <option value="3">slow (3 s per hour)</option>
+        <option value="1.5" selected>normal (1.5 s per hour)</option>
+        <option value="0.8">fast (0.8 s per hour)</option>
+      </select>
+      <button class="btn replay" type="button" onclick="startReplay()">Start replay</button>
+      <button class="btn ghost" type="button" onclick="post('/replay/stop')">Stop replay</button>
+    </div>
+    <div id="chart_wrap" hidden>
+      <h3 class="chart-title" id="chart_title"></h3>
+      <div class="src" id="tl_summary"></div>
+      <svg class="chart" id="chart" viewBox="0 0 640 210" preserveAspectRatio="xMidYMid meet" role="img"
+           aria-label="Model risk and NEWS2 over the replay"></svg>
+      <div class="src">Model risk in %, NEWS2 scaled from 0 to 9.</div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>Context</h2><span class="src">Shown for reference, not scored</span></div>
+  <div class="grid">
+    <div class="card wide"><div class="eyebrow">Your own normal · resting values while the chest sensor says you are still</div>
+      <div id="base" class="ctx">–</div></div>
+    <div class="card"><div class="eyebrow">Watch context</div>
+      <div id="ctx" class="ctx">–</div>
+      <div class="src">HRV is RMSSD over about 5 min of beat intervals.</div></div>
+    <div class="card"><div class="eyebrow">Room · Modulino Thermo / Light</div>
+      <div id="env" class="ctx">–</div></div>
+    <div class="card"><div class="eyebrow">Board</div>
+      <div id="board" class="ctx">–</div></div>
+  </div>
+
+  <details class="card" style="margin-top:14px">
     <summary>Demo controls (override a vital for 10 minutes)</summary>
-    <div class="row">
+    <div class="row overrides">
       <label>Heart rate <b id="o_hr_v">–</b><input type="range" id="o_hr" min="40" max="160" value="75"></label>
       <label>SpO₂ <b id="o_spo2_v">–</b><input type="range" id="o_spo2" min="80" max="100" value="97"></label>
-      <label>Temperature <b id="o_temp_v">–</b><input type="range" id="o_temp" min="34" max="41" step="0.1" value="36.8"></label>
+      <label>Core temperature <b id="o_temp_v">–</b><input type="range" id="o_temp" min="34" max="41" step="0.1" value="36.8"></label>
       <label>Resp. rate <b id="o_rr_v">–</b><input type="range" id="o_rr" min="4" max="40" value="16"></label>
     </div>
     <div class="row">
-      <button class="act" onclick="sendOverride()">Apply overrides</button>
-      <button class="act ghost" onclick="clearOverride()">Clear overrides</button>
-      <button class="act ghost" onclick="post('/vibe')">Test vibration</button>
+      <button class="btn" type="button" onclick="sendOverride()">Apply overrides</button>
+      <button class="btn ghost" type="button" onclick="clearOverride()">Clear overrides</button>
+      <button class="btn ghost" type="button" onclick="post('/vibe')">Test vibration</button>
+    </div>
+    <div class="eyebrow" style="margin-top:18px">Fault demo · simulated for 60 s, then clears by itself</div>
+    <div class="row">
+      <button class="btn ghost" type="button" onclick="fault('watch_drop')">Drop the watch link</button>
+      <button class="btn ghost" type="button" onclick="fault('imu_freeze')">Freeze the chest sensor</button>
+      <button class="btn ghost" type="button" onclick="fault('internet_cut')">Cut the internet (simulated)</button>
+      <button class="btn ghost" type="button" onclick="post('/fault', {clear:true})">Clear faults</button>
     </div>
   </details>
 
@@ -141,19 +174,26 @@
 </main>
 
 <script>
-const $ = id => document.getElementById(id);
-const fmt = (v, d=0) => v == null ? '–' : Number(v).toFixed(d);
 const srcText = s => s ? ({watch:'from watch', imu:'from chest IMU', override:'manual override'}[s] || s) : 'no data';
 
-function post(path, body) {
-  return fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {})});
-}
 for (const k of ['hr','spo2','temp','rr']) {
   const el = $('o_'+k); el.oninput = () => $('o_'+k+'_v').textContent = el.value; el.oninput();
 }
 function sendOverride() { post('/override', {hr:+$('o_hr').value, spo2:+$('o_spo2').value, temp:+$('o_temp').value, rr:+$('o_rr').value}); }
 function clearOverride() { post('/override', {hr:null, spo2:null, temp:null, rr:null}); }
+function fault(kind) { post('/fault', {kind: kind, seconds: 60}); }
 function startReplay() { post('/replay/start', {case: $('case_sel').value, seconds_per_hour: +$('speed_sel').value}); }
+
+holdToConfirm($('unwell_btn'), 1000, feelUnwell);
+async function feelUnwell() {
+  const b = $('unwell_btn');
+  b.disabled = true;
+  try {
+    const r = await post('/api/checkin', {feel_unwell: true, by: 'wearer'});
+    $('receipt').textContent = r.ok ? 'Sent. The nurse team will see it in their queue.' : 'Could not send. Try again.';
+  } catch (e) { $('receipt').textContent = 'Board unreachable. Not sent.'; }
+  setTimeout(() => { b.disabled = false; }, 3000);
+}
 
 function setBar(id, pct, thr) {
   const el = $(id); el.style.width = Math.max(0, Math.min(100, pct)) + '%';
@@ -161,37 +201,127 @@ function setBar(id, pct, thr) {
   el.style.background = pct >= hi ? 'var(--bad)' : pct >= hi * 0.6 ? 'var(--warn)' : 'var(--ok)';
 }
 
+function skinNote(sk) {
+  if (sk.v == null) return '';
+  if (sk.delta == null) return ` · learning your baseline (${sk.n_base}/${sk.need} readings, needs 10 min of history); not used for scoring`;
+  const sign = sk.delta > 0 ? '+' : '';
+  const flag = Math.abs(sk.delta) >= sk.flag_c ? ' · notable change (skin temperature can also fall at fever onset)' : '';
+  return ` · baseline ${sk.baseline.toFixed(1)} °C, change ${sign}${sk.delta.toFixed(1)} °C; not used for scoring${flag}`;
+}
+
+function showEscalation(e) {
+  $('esc_card').hidden = !e.active;
+  if (!e.active) return;
+  const b = e.sbar;
+  $('esc_body').innerHTML =
+    `<div class="sbar"><b>S</b><div>${esc(b.situation)}</div></div>` +
+    `<div class="sbar"><b>B</b><div>${esc(b.background)}</div></div>` +
+    `<div class="sbar"><b>A</b><div>Biggest changes over 6 h, and the current picture:<ul>${b.assessment.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div></div>` +
+    `<div class="sbar"><b>R</b><div>${esc(b.recommendation)}</div></div>` +
+    `<div class="disc">${esc(b.disclaimer)}</div>`;
+}
+
+function agoText(vv) {
+  if (vv.age_s == null) return '';
+  const a = vv.age_s;
+  return ' · ' + (a < 120 ? Math.round(a) + ' s ago' : Math.round(a / 60) + ' min ago') + (vv.stale ? ' (stale)' : '');
+}
+
+function chip(cls, text, ic) { return `<span class="chip ${cls}"><i></i>${icon(ic)}${esc(text)}</span>`; }
+function renderLinks(s) {
+  const L = s.links || {};
+  const w = L.watch || {};
+  const wl = {connected:['ok','Watch link: connected'], slow:['warn','Watch link: slow'],
+              disconnected:['bad','Watch link: down'], never:['','Watch link: no packets yet']}[w.state] || ['', 'Watch link: unknown'];
+  let h = chip(wl[0], wl[1] + (w.last_age_s != null ? ` (last packet ${Math.round(w.last_age_s)} s ago)` : ''), 'device-watch');
+  const r = L.readings || {};
+  h += chip(r.missing >= 3 ? 'bad' : (r.stale || r.missing) ? 'warn' : 'ok',
+            `Readings: ${r.fresh} fresh, ${r.stale} stale, ${r.missing} missing (of ${r.of})`, 'activity');
+  const e = L.engine || {};
+  const eng = e.name === 'eim' ? 'Edge Impulse model on the board' : e.name === 'trees' ? 'tree fallback on the board' : (e.name || 'none');
+  h += chip(e.state === 'running' ? 'ok' : e.state === 'starting' ? '' : 'bad',
+            `Model: ${eng}, ${e.state}` + (e.last_scored_age_s != null ? ` (scored ${Math.round(e.last_scored_age_s)} s ago)` : ''), 'cpu');
+  const n = L.net || {};
+  h += chip(n.internet ? 'ok' : n.lan ? 'warn' : n.lan === false ? 'bad' : '',
+            n.internet ? 'Internet: reachable (not needed)' : n.lan ? 'Internet: unreachable' + (n.simulated ? ' (simulated)' : '')
+              : n.lan === false ? 'Network: none' : 'Network: checking', n.internet ? 'wifi' : 'wifi-off');
+  for (const [k, f] of Object.entries(L.faults || {})) if (f.active) h += chip('warn', `Demo fault: ${k.replace('_', ' ')} (${f.seconds_left} s left)`, 'alert-triangle');
+  // Chest-sensor shaking: a question for the person, context only, never scored.
+  if (s.rigor && s.rigor.shaking) h += chip('warn', 'Shaking detected: are you having chills?', 'temperature');
+  $('chips').innerHTML = h;
+  const off = n.lan && n.internet === false;
+  $('offline_banner').classList.toggle('on', !!off);
+  $('offline_text').textContent = 'Offline: no internet' + (n.simulated ? ' (simulated)' : '') +
+    '. All models are running locally on the board, and the watch link still works over the local network.';
+}
+
+function renderBaseline(s, rep) {
+  const b = s.baseline, rest = s.rest || {};
+  if (rep || !b) { $('base').innerHTML = '<span class="src">not available in replay</span>'; return; }
+  const row = (name, unit, o) => {
+    const now = o.now == null ? '<span class="src">not resting right now</span>' : `<b>${o.now.toFixed(0)} ${unit}</b>`;
+    const base = o.baseline == null ? `<span class="src">${esc(o.basis)}</span>`
+      : `your normal ${o.baseline.toFixed(0)} ${unit} <span class="src">(${esc(o.basis)})</span>`;
+    const d = o.delta == null ? '' : ` · <span class="delta">${o.delta > 0 ? '+' : ''}${o.delta.toFixed(0)} ${unit} vs normal</span>`;
+    return `<div>${name}: ${now} · ${base}${d}</div>`;
+  };
+  $('base').innerHTML = row('Resting heart rate', 'bpm', b.hr) + row('Resting HRV (RMSSD)', 'ms', b.hrv) +
+    `<div class="src" style="margin-top:6px">${rest.still ? 'Resting: readings are being added to your normal.' : 'Moving: these readings are not counted toward your normal.'} Chest motion ${rest.motion_g == null ? '–' : rest.motion_g.toFixed(3)} g (resting is under 0.012 g).</div>`;
+}
+
 let casesFilled = false;
 function fillCases(cases) {
   if (casesFilled || !cases || !cases.length) return;
-  $('case_sel').innerHTML = cases.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  $('case_sel').innerHTML = cases.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
   casesFilled = true;
 }
 
 function drawChart(rp) {
-  const W = 600, H = 190, L = 34, R = 10, T = 10, B = 24;
+  const W = 640, H = 210, L = 34, R = 92, T = 22, B = 24;
   const start = rp.start_hour, end = rp.end_hour, span = Math.max(1, end - start);
   const x = h => L + (h - start) / span * (W - L - R);
   const y = v => T + (1 - v / 100) * (H - T - B);
-  let g = '';
-  for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-5}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
-  const step = Math.max(1, Math.round(span / 6));
-  for (let h = start; h <= end; h += step) g += `<text x="${x(h)}" y="${H-8}" text-anchor="middle">h${h}</text>`;
-  const thr = rp.risk && rp.risk.threshold;
-  if (thr != null) g += `<line x1="${L}" x2="${W-R}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--ink)" stroke-opacity=".5" stroke-dasharray="4 3"/>`;
-  if (rp.onset_hour != null && rp.onset_hour >= start && rp.onset_hour <= end)
-    g += `<line x1="${x(rp.onset_hour)}" x2="${x(rp.onset_hour)}" y1="${T}" y2="${H-B}" stroke="var(--bad)" stroke-width="2"/><text x="${x(rp.onset_hour)-4}" y="${T+10}" text-anchor="end" style="fill:var(--bad)">onset</text>`;
-  const line = (pts, color) => pts.length > 1 ? `<polyline fill="none" stroke="${color}" stroke-width="2.2" points="${pts.map(p => p.join(',')).join(' ')}"/>` : '';
   const tl = rp.timeline;
-  g += line(tl.filter(p => p.news2 != null).map(p => [x(p.hour), y(p.news2 / 9 * 100)]), 'var(--warn)');
-  g += line(tl.filter(p => p.risk != null).map(p => [x(p.hour), y(p.risk)]), 'var(--accent)');
-  g += `<line x1="${x(rp.hour)}" x2="${x(rp.hour)}" y1="${T}" y2="${H-B}" stroke="var(--replay)" stroke-width="1.5"/>`;
+  let g = '';
+  for (const v of [0, 50, 100]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  const step = Math.max(1, Math.round(span / 6));
+  for (let h = start; h <= end; h += step) g += `<text x="${x(h)}" y="${H-6}" text-anchor="middle">h${h}</text>`;
+  const thr = rp.risk && rp.risk.threshold;
+  if (thr != null) g += `<line x1="${L}" x2="${W-R}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--ink)" stroke-opacity=".45" stroke-dasharray="4 3"/>` +
+    `<text x="${W-R+6}" y="${y(thr)+4}">alert ${thr}%</text>`;
+  if (rp.onset_hour != null && rp.onset_hour >= start && rp.onset_hour <= end)
+    g += `<line x1="${x(rp.onset_hour)}" x2="${x(rp.onset_hour)}" y1="${T-8}" y2="${H-B}" stroke="var(--bad)" stroke-width="2"/>` +
+      `<text x="${x(rp.onset_hour)-5}" y="${T-10}" text-anchor="end" style="fill:var(--bad);font-weight:600">sepsis onset</text>`;
+  const n2 = tl.filter(p => p.news2 != null).map(p => [x(p.hour), y(p.news2 / 9 * 100), p.news2]);
+  const mr = tl.filter(p => p.risk != null).map(p => [x(p.hour), y(p.risk), p.risk]);
+  g += svgLine(n2, 'var(--other)', 1.8);
+  g += svgLine(mr, 'var(--model)', 3.4);
+  const endLabel = (pts, text, color, weight) => pts.length ? `<text x="${W-R+6}" y="${pts.at(-1)[1]+4}" style="fill:${color};font-weight:${weight}">${text}</text>` : '';
+  g += endLabel(n2, `NEWS2 ${n2.length ? n2.at(-1)[2] : ''}`, 'var(--muted)', 400);
+  g += endLabel(mr, `Model ${mr.length ? Math.round(mr.at(-1)[2]) + '%' : ''}`, 'var(--model)', 600);
+  const firstModel = tl.find(p => p.alert), firstN2 = tl.find(p => p.news2_alert);
+  if (firstModel && firstModel.risk != null)
+    g += `<circle cx="${x(firstModel.hour)}" cy="${y(firstModel.risk)}" r="5" fill="var(--model)"/>` +
+      `<text x="${x(firstModel.hour)+8}" y="${y(firstModel.risk)-8}" style="fill:var(--ink);font-weight:600">first model alert</text>`;
+  g += `<line x1="${x(rp.hour)}" x2="${x(rp.hour)}" y1="${T}" y2="${H-B}" stroke="var(--ink)" stroke-opacity=".35" stroke-width="1.5"/>`;
   $('chart').innerHTML = g;
 
-  const firstModel = tl.find(p => p.alert), firstN2 = tl.find(p => p.news2_alert);
-  const rel = p => rp.onset_hour == null ? `hour ${p.hour}` : `${Math.abs(rp.onset_hour - p.hour)} h ${p.hour <= rp.onset_hour ? 'before' : 'after'} onset`;
+  const rel = p => rp.onset_hour == null ? `at hour ${p.hour}` : `${Math.abs(rp.onset_hour - p.hour)} h ${p.hour <= rp.onset_hour ? 'before' : 'after'} onset`;
+  $('chart_title').textContent = firstModel ? `Model first alerted ${rel(firstModel)}` : 'Model has not alerted in this replay yet';
   $('tl_summary').textContent =
-    `Model first alerts: ${firstModel ? rel(firstModel) : 'not yet'} · NEWS2 rule (5+ or any 3) first alerts: ${firstN2 ? rel(firstN2) : 'not yet'}`;
+    `Model first alerts: ${firstModel ? rel(firstModel).replace(/^at /, '') : 'not yet'} · NEWS2 rule (5+ or any 3) first alerts: ${firstN2 ? rel(firstN2).replace(/^at /, '') : 'not yet'}`;
+}
+
+// Headline for the hero: board alert state first, then whether the model has an answer yet.
+function showLevel(s, m, rep) {
+  const alert = (s.alert.active && !s.alert.muted) || (rep && m.alert);
+  const muted = s.alert.active && s.alert.muted;
+  const level = alert ? 'alert' : m.risk == null ? 'wait' : 'clear';
+  $('risk_card').dataset.level = level;
+  $('overall').textContent = alert ? 'Deterioration alert: check the patient'
+    : muted ? 'Alert acknowledged and silenced'
+    : m.risk == null ? 'Model is not scoring yet'
+    : 'No alert from the board';
 }
 
 async function refresh() {
@@ -207,21 +337,40 @@ async function refresh() {
     }
 
     for (const [k, d] of [['rr',0],['hr',0],['spo2',0],['temp',1]]) {
-      if (rep) { $(k).textContent = fmt(V[k], d); $(k+'_src').textContent = 'recorded ICU data (replay)'; continue; }
-      $(k).textContent = fmt(s.vitals[k].v, d);
+      const box = $(k).parentElement;
+      if (rep) {
+        $(k).textContent = fmt(V[k], d); $(k+'_src').textContent = 'recorded ICU data (replay)';
+        box.classList.remove('stale');
+        box.classList.toggle('missing', V[k] == null);
+        if (k === 'temp') $('temp_label').textContent = 'Core temperature (recorded)';
+        continue;
+      }
+      let vv = s.vitals[k];
+      if (k === 'temp') {
+        const ov = s.vitals.temp.src === 'override';
+        vv = ov ? s.vitals.temp : s.vitals.skin;
+        $('temp_label').textContent = ov ? 'Core temperature (manual override)' : 'Skin temperature (wrist)';
+      }
+      $(k).textContent = fmt(vv.v, d);
+      box.classList.toggle('stale', !!vv.stale);   // reading has aged
+      box.classList.toggle('missing', vv.v == null);
       let extra = '';
       if (k === 'rr' && s.vitals.rr.v == null) extra = ' · ' + (s.rr_detail.reason || '');
-      if (k === 'temp' && s.vitals.temp.skin_c != null) extra = ` · skin ${s.vitals.temp.skin_c.toFixed(1)} °C + 3.5`;
-      $(k+'_src').textContent = srcText(s.vitals[k].src) + extra;
+      if (k === 'temp' && s.vitals.temp.src !== 'override') extra = skinNote(s.vitals.skin);
+      $(k+'_src').textContent = srcText(vv.src) + agoText(vv) + extra;
     }
 
     const n2 = rep ? rp.news2 : s.news2;
     $('news').textContent = n2.score;
     setBar('news_bar', n2.score / 9 * 100, 55);
     $('parts').innerHTML = Object.entries(n2.parts).map(([k,p]) =>
-      `<span>${k.toUpperCase()} <span class="pts p${p}">${p}</span></span>`).join('') +
-      (n2.missing.length ? `<span class="src">missing: ${n2.missing.join(', ')}</span>` : '');
+      `<span class="part">${esc(k.toUpperCase())}<span class="pts p${p}">${p}</span></span>`).join('') +
+      (n2.missing.length ? `<span class="src">missing: ${esc(n2.missing.join(', '))}</span>` : '');
     $('banner').classList.toggle('on', s.alert.active && !s.alert.muted);
+    const ec = s.escalation || {};
+    $('banner_text').textContent = 'Deterioration alert: check the patient.' +
+      (ec.alert_age_s != null && !ec.active ? ` Not acknowledged for ${ec.alert_age_s} s; carer view opens at ${ec.after_s} s.` : '');
+    showEscalation(ec);
 
     const m = rep ? rp.risk : s.risk;
     const r = m.risk;
@@ -229,24 +378,35 @@ async function refresh() {
     $('risk_note').textContent = r == null ? (m.note || '') : '% sepsis risk' + (m.alert ? ' · ALERT' : '');
     const thr = m.threshold;
     setBar('risk_bar', r == null ? 0 : r, thr);
-    $('risk_thr').style.display = thr != null ? 'block' : 'none';
+    $('risk_thr').hidden = thr == null;
     if (thr != null) $('risk_thr').style.left = thr + '%';
     const tr = m.trend && Object.keys(m.trend).length
       ? ' · 6 h change: ' + Object.entries(m.trend).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') : '';
     $('risk_detail').textContent = (m.engine ? `engine: ${m.engine === 'eim' ? 'Edge Impulse model (.eim)' : 'tree fallback'} · ` : '') +
       (m.hours != null ? `${m.hours} h of history · ` : '') + (thr != null ? `alert threshold ${thr}%` : '') + tr;
+    showLevel(s, m, rep);
+    if (s.handoff_receipt) $('receipt').textContent = s.handoff_receipt.text;
 
-    $('chart_wrap').style.display = rep ? 'block' : 'none';
+    $('chart_wrap').hidden = !rep;
     if (rep) drawChart(rp);
     $('results').textContent = rp.results || '';
 
     const e = s.env;
     $('env').textContent = `${fmt(e.temp_c,1)} °C · ${fmt(e.hum_pct,0)} % RH · ${e.lux == null ? '–' : e.lux + ' lux'}`;
+    renderLinks(s);
+    renderBaseline(s, rep);
+    const cx = s.context || {};
+    $('ctx').textContent = rep ? 'not available in replay' :
+      `Ambient ${fmt(cx.ambient_c, 1)} °C · HRV ${cx.rmssd_ms == null ? '–' : cx.rmssd_ms.toFixed(0) + ' ms'}`;
     const w = s.watch;
     $('board').textContent = `${s.devices || 'no status'} · IMU ${s.imu_hz ?? '–'} samples/s · watch packets ${w.packets}` +
       (w.last_age_s == null ? ' (none yet)' : ` (last ${w.last_age_s}s ago)`);
     $('status').textContent = (rep ? 'replay · ' : 'live · ') + new Date().toLocaleTimeString();
-  } catch (err) { $('status').textContent = 'board unreachable'; }
+  } catch (err) {
+    $('status').textContent = 'board unreachable';
+    $('overall').textContent = 'Board unreachable: values below may be out of date';
+    $('risk_card').dataset.level = 'wait';
+  }
 }
 setInterval(refresh, 1000); refresh();
 </script>

@@ -98,7 +98,7 @@ void setup() {
   okThermo = thermo.begin();
   okLight = light.begin();
   okVibro = vibro.begin();
-  okImu = imuWrite(0x10, 0x30);   // CTRL1_XL: 52 Hz, +-2 g
+  okImu = imuWrite(0x10, 0x20);   // CTRL1_XL: 26 Hz ODR, +-2 g (we read at 25 Hz, so nothing above ~13 Hz can alias in)
 
   Bridge.begin();
   Bridge.provide("drain", drain);

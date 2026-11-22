@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pine dark theme from the UI Atlas "Dark colour themes" study, the same tokens as the board pages'
+     dark theme, on a true-black ground for the OLED screen. -->
+<resources>
+    <color name="ground">#000000</color>
+    <color name="card">#19251F</color>
+    <color name="paper">#E2ECE5</color>
+    <color name="ink">#101815</color>
+    <color name="muted">#A6BCAD</color>
+    <color name="line">#334A3C</color>
+    <color name="ok">#9CD9B1</color>
+    <color name="warn">#F1BE83</color>
+    <color name="bad">#F4A49C</color>
+    <color name="fake">#B71C1C</color>
+</resources>

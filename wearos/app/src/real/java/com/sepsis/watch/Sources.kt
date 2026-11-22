@@ -37,6 +37,8 @@ private class RealSource(context: Context) : VitalsSource {
             spo2 = spo2?.first?.roundToInt(),
             spo2T = spo2?.second,
             skinTempC = samsung.skin.fresh(nowMs, MaxAge.SKIN_TEMP_MS),
+            ambientC = samsung.ambient.fresh(nowMs, MaxAge.SKIN_TEMP_MS),
+            ibiMs = samsung.ibi.drain(),
         )
     }
 

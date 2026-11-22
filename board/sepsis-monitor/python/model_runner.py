@@ -36,7 +36,14 @@ class EimRunner:
         t0 = time.time()
         while not os.path.exists(sock):
             if self._proc.poll() is not None or time.time() - t0 > 20:
-                raise RuntimeError(f"eim did not start (exit {self._proc.poll()})")
+                code = self._proc.poll()
+                try:
+                    self._proc.terminate()
+                except Exception:
+                    pass
+                import shutil
+                shutil.rmtree(self._dir, ignore_errors=True)   # don't leave the socket dir behind
+                raise RuntimeError(f"eim did not start (exit {code})")
             time.sleep(0.1)
         self._s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._s.settimeout(10)
@@ -60,11 +67,15 @@ class EimRunner:
         text = data.decode()
         return json.loads(text[text.index("{"):text.rindex("}") + 1])
 
-    def p_sepsis(self, fv):
+    def classify(self, fv):
+        """{label: probability} for one window of raw features."""
         r = self._send({"classify": [float(v) for v in fv]})
         if not r.get("success", True):
             raise RuntimeError(r.get("error"))
-        return float(r["result"]["classification"]["sepsis"])
+        return r["result"]["classification"]
+
+    def p_sepsis(self, fv):
+        return float(self.classify(fv)["sepsis"])
 
     def close(self):
         try:

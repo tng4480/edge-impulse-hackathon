@@ -25,18 +25,55 @@ Strict protocol (`training/strict_eval.py`, output `training/out/strict_eval.jso
 - Both methods start scoring at the same hour, once 8 h of history exist. NEWS2 rounds readings before banding, as a chart would.
 - False alerts are alert episodes (each run of consecutive alert hours counts once) per patient-day in non-sepsis patients.
 
-| Method (test patients) | Flagged before onset | False alerts per patient-day |
-|---|---|---|
-| NEWS2 rule, 4 vitals (score 5+ or any 3) | 76 % | 1.61 |
-| **Model score ≥ 0.55** (matches NEWS2's catch rate on validation) | **78 %** | **0.91** |
-| Model score ≥ 0.30 (still fewer false alerts than NEWS2 on validation) | 97 % | 1.46 |
-| Model score ≥ 0.614 (validation, 15 % window false-alarm rate) | 69 % | 0.71 |
+| Method (test patients) | Flagged before onset | Separate false alerts per patient-day | Share of non-sepsis hours in alert | Median first alert before onset |
+|---|---|---|---|---|
+| NEWS2 rule, 4 vitals (score 5+ or any 3) | 76 % | 1.61 | 16 % | 17 h |
+| **Model ≥ 0.55** (cutoff matching NEWS2's catch rate on validation; on the device) | **78 %** | **0.91** | 22 % | 20 h |
+| Model ≥ 0.61 (cutoff matching NEWS2's time in alert on validation) | 70 % | 0.72 | 15 % | 18 h |
+| Model ≥ 0.30 (cutoff matching NEWS2's separate alerts on validation) | 97 % | 1.46 | 64 % | 24 h |
 
-The device uses **0.55**. 0.30 was the bottom of the searched range, so the "same burden" point is a lower bound: the cutoff where false alerts exactly match NEWS2 is lower still.
+**What this shows, honestly:**
 
-**Pitch line:** at the same catch rate as a 4-vital NEWS2 rule, the model raises about 43 % fewer false alerts (0.91 vs 1.61 per patient-day). Lower the cutoff and it catches nearly all sepsis patients in the day before onset while still alarming less than NEWS2. This is a model score, not a calibrated probability of sepsis.
+- **At the same catch rate,** the model raises about 43 % fewer separate false alerts and warns about 3 h earlier (median). But each alert lasts longer: non-sepsis patients are in alert 22 % of hours against 16 %.
+- **At the same total alarm time,** NEWS2 catches more: 76 % against 70 %. The model does **not** beat a 4-vital NEWS2 on catches per alarm-hour.
+- **The 0.30 row is not usable.** The alarm is on 64 % of the time, so a high catch rate there means nothing.
+- **The model's real advantage is the shape of its alarms:** fewer, steadier and slightly earlier, because it follows 24 h trends while NEWS2 flips with each reading. For a home wearer, one steady alert to act on may matter more than raw alarm time, but this data doesn't prove that.
+- This is a model score, not a calibrated probability of sepsis. All four rows come from `training/out/strict_eval.json`, and the full cutoff curves are in `strict_curves.json`.
+
+**Pitch line:** "Matching NEWS2's catch rate, our model raises 43 % fewer separate alarms and warns about three hours earlier. It does not beat NEWS2 on total alarm time, which is why the device also runs NEWS2 alongside it."
 
 The earlier table (cutoff 0.58, chosen on the test set, with a window that included the onset hour) is superseded.
+
+## What the device can actually measure: no core temperature
+
+The table above uses recorded ICU temperature, which the watch can't provide (it reads wrist skin, not core). `training/train_gbm_v2.py` and `training/strict_eval.py` with `MASK_TEMP=1` train and score everything on HR, SpO2 and respiratory rate only (model v3, NEWS2 scored on the same three vitals). Cutoffs again chosen on validation patients; results in `training/out/strict_eval_v3.json`.
+
+| Method (test patients, no temperature) | Flagged before onset | Separate false alerts per patient-day | Share of non-sepsis hours in alert | Median first alert before onset |
+|---|---|---|---|---|
+| NEWS2 rule, 3 vitals | 73 % | 1.58 | 15 % | 17 h |
+| Model v3 ≥ 0.52 (matches NEWS2's catch rate on validation) | 78 % | 1.06 | 32 % | 23 h |
+| Model v3 ≥ 0.61 (matches NEWS2's time in alert on validation) | 60 % | 0.68 | 16 % | 19 h |
+
+- The model still gives a longer warning (23 h against 17 h) and fewer separate alerts at a similar catch rate, but it spends **twice as long in alert** (32 % against 15 %).
+- At the same alarm time the model catches **fewer** (60 % against 73 %). On the signals the device really has, the model does not beat NEWS2 on catches per alarm-hour.
+- The stress lab says the same thing for the v1 model: with temperature removed its catch rate falls from 78 % to 55 % (`docs/stress_results.md`).
+- The device currently runs the v1 model, which was trained with temperature. With no temperature the board fills in a default of 36.9 °C, so live performance is closer to the stress-lab row than to the first table. v3 is trained for exactly that situation but is not deployed.
+
+### Can an alert policy close the gap? (`training/policy_eval.py`)
+
+The v3 score is sticky, so I searched about 580 rules on validation patients only: turn on after k consecutive hours at or above a cutoff, turn off when the score drops below a lower cutoff, or after a maximum number of hours. Each winner is then reported once on the test patients.
+
+| Test patients, no temperature | Flagged before onset | Separate false alerts per patient-day | Share of non-sepsis hours in alert | Median first alert before onset |
+|---|---|---|---|---|
+| NEWS2 rule, 3 vitals | 73 % | 1.58 | 15 % | 17 h |
+| Model, bare cutoff, equal alarm time | 50 % | 0.53 | 11 % | 18 h |
+| **Model, best rule at equal alarm time** (3 h above 0.55, clear after 6 h) | **61 %** | 0.79 | 15 % | 20 h |
+| **Model, best rule at NEWS2's separate-alert count** (3 h above 0.49, clear after 6 h) | **73 %** | 1.17 | 23 % | 22 h |
+
+- A policy helps: at equal alarm time it lifts the model from 50 % to 61 %, and at a similar catch rate it cuts alarm time from 32 % (bare cutoff, previous table) to 23 %.
+- It does **not** change the verdict. At equal alarm time NEWS2 still catches more (73 % against 61 %). The remaining gap comes from the signal, not the alert rule.
+- The second rule is the honest best case for the pitch: the same catch rate as NEWS2 with about a quarter fewer separate alerts and a warning about 5 h earlier, but about 50 % more alarm time.
+- This is a search over about 580 rules, so the validation winner is optimistic; the test numbers above are the ones to quote.
 
 ## Replay cases (`board/sepsis-monitor/python/replay_cases.json`)
 

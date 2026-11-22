@@ -1,14 +1,21 @@
 package com.sepsis.watch
 
 import android.Manifest
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
+import android.graphics.drawable.LayerDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
+import android.view.accessibility.AccessibilityManager
+import android.view.animation.LinearInterpolator
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -27,10 +34,19 @@ class MainActivity : Activity() {
     private lateinit var skin: TextView
     private lateinit var notes: TextView
     private lateinit var toggle: Button
+    private lateinit var unwell: Button
+    private lateinit var checkinStatus: TextView
+    private lateinit var ecgStatus: TextView
     private lateinit var host: EditText
     private lateinit var port: EditText
 
     private val ui = Handler(Looper.getMainLooper())
+
+    // "I feel unwell" is hold to confirm: it sends only after HOLD_MS of pressing, so a brush of the sleeve does nothing.
+    private var hold: ValueAnimator? = null
+    private var seenCheckinAt = 0L
+    private var wasConnected = false
+    private var shownRunning: Boolean? = null
     private val refresher = object : Runnable {
         override fun run() {
             refresh()
@@ -50,6 +66,9 @@ class MainActivity : Activity() {
         skin = findViewById(R.id.skin)
         notes = findViewById(R.id.sensorNotes)
         toggle = findViewById(R.id.toggle)
+        unwell = findViewById(R.id.unwell)
+        checkinStatus = findViewById(R.id.checkinStatus)
+        ecgStatus = findViewById(R.id.ecgStatus)
         host = findViewById(R.id.host)
         port = findViewById(R.id.port)
 
@@ -58,18 +77,36 @@ class MainActivity : Activity() {
         applyAddressExtras(intent)
 
         toggle.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             if (LiveState.running) {
                 startService(VitalsService.intent(this, VitalsService.ACTION_STOP))
             } else {
                 requestPermissionsThenStart()
             }
         }
+        unwell.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> startHold()
+                MotionEvent.ACTION_UP -> { cancelHold(); v.performClick() }
+                MotionEvent.ACTION_CANCEL -> cancelHold()
+            }
+            true
+        }
+        // A screen-reader user cannot hold, so their double-tap (a click) sends straight away.
+        unwell.setOnClickListener {
+            if (getSystemService(AccessibilityManager::class.java).isTouchExplorationEnabled) sendCheckin()
+        }
         findViewById<Button>(R.id.measureSpo2).setOnClickListener {
             if (LiveState.running) {
                 startService(VitalsService.intent(this, VitalsService.ACTION_SPO2))
             } else {
-                toast("Press Start first")
+                toast("Start monitoring first")
             }
+        }
+        // One ECG + PPG check for pulse arrival time. EcgTriggerReceiver starts it; the caption shows EcgCheck.status.
+        findViewById<Button>(R.id.ecgCheck).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            sendBroadcast(Intent("com.sepsis.ECG_CHECK").setPackage(packageName))
         }
         findViewById<Button>(R.id.save).setOnClickListener { saveAddress() }
         // "Done" on the watch keypad saves straight away.
@@ -122,6 +159,41 @@ class MainActivity : Activity() {
         settings.port = p
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(host.windowToken, 0)
         toast("Saved ${settings.url()}")
+    }
+
+    private fun holdFill() = (unwell.background as LayerDrawable).findDrawableByLayerId(R.id.fill)
+
+    private fun startHold() {
+        unwell.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        unwell.text = "Keep holding…"
+        hold = ValueAnimator.ofInt(0, 10_000).apply {
+            duration = HOLD_MS
+            interpolator = LinearInterpolator()
+            addUpdateListener { holdFill().level = it.animatedValue as Int }
+            addListener(object : AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: Animator) {
+                    hold = null
+                    holdFill().level = 0
+                    unwell.text = "Hold: I feel unwell"
+                    if (!cancelled) sendCheckin()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun cancelHold() {
+        hold?.cancel()
+    }
+
+    private fun sendCheckin() {
+        unwell.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        LiveState.checkinText = "Sending…"
+        LiveState.checkinOk = true
+        startService(VitalsService.intent(this, VitalsService.ACTION_CHECKIN))
+        refresh()
     }
 
     // --- Permissions -------------------------------------------------------------------------
@@ -186,28 +258,54 @@ class MainActivity : Activity() {
     private fun refresh() {
         val now = System.currentTimeMillis()
         val s = LiveState.lastSnapshot.takeIf { LiveState.running }
-        hr.text = "HR " + (s?.hr?.let { "$it bpm" } ?: "--")
-        spo2.text = "SpO2 " + (s?.spo2?.let { "$it %" } ?: "--")
-        skin.text = "Skin " + (s?.skinTempC?.let { String.format(Locale.US, "%.1f °C", it) } ?: "--")
+        hr.text = s?.hr?.toString() ?: "--"
+        spo2.text = s?.spo2?.let { "$it %" } ?: "--"
+        skin.text = s?.skinTempC?.let { String.format(Locale.US, "%.1f °C", it) } ?: "--"
 
+        val connected = LiveState.connected(now)
         when {
-            !LiveState.running -> setLink("● Stopped", Color.GRAY)
-            LiveState.connected(now) -> setLink("● Connected", Color.rgb(0x66, 0xBB, 0x6A))
-            else -> setLink("● Not connected", Color.rgb(0xEF, 0x53, 0x50))
+            !LiveState.running -> setLink("● Stopped", R.color.muted)
+            connected -> setLink("● Connected", R.color.ok)
+            else -> setLink("● Not connected", R.color.bad)
         }
+        // One buzz when the board link drops while monitoring, so the wearer notices without looking.
+        if (wasConnected && !connected && LiveState.running) link.performHapticFeedback(HapticFeedbackConstants.REJECT)
+        wasConnected = connected
+
         linkDetail.text = buildString {
             append(settings.url().removePrefix("http://"))
-            if (LiveState.running) append("\nqueued ${LiveState.queued}")
-            if (!LiveState.connected(now)) LiveState.lastError?.let { append("\n").append(it) }
+            if (LiveState.running && LiveState.queued > 1) append("\n${LiveState.queued} samples waiting to send")
+            if (!connected) LiveState.lastError?.let { append("\n").append(it) }
         }
         notes.text = listOfNotNull(LiveState.message, LiveState.notes.takeIf { LiveState.running && it.isNotBlank() })
             .joinToString("\n")
-        toggle.text = if (LiveState.running) "Stop" else "Start"
+
+        if (shownRunning != LiveState.running) {   // restyle only on change, so a press in progress is not reset
+            shownRunning = LiveState.running
+            toggle.text = if (LiveState.running) "Stop monitoring" else "Start monitoring"
+            toggle.setBackgroundResource(if (LiveState.running) R.drawable.pill_ghost else R.drawable.pill_primary)
+            toggle.setTextColor(getColor(if (LiveState.running) R.color.paper else R.color.ink))
+        }
+
+        ecgStatus.text = EcgCheck.status
+
+        LiveState.checkinText?.let {
+            checkinStatus.text = it
+            checkinStatus.setTextColor(getColor(if (LiveState.checkinOk) R.color.paper else R.color.bad))
+        }
+        if (LiveState.checkinAtMs != seenCheckinAt) {
+            if (seenCheckinAt != 0L || now - LiveState.checkinAtMs < 5_000) {
+                unwell.performHapticFeedback(
+                    if (LiveState.checkinOk) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.REJECT
+                )
+            }
+            seenCheckinAt = LiveState.checkinAtMs
+        }
     }
 
-    private fun setLink(text: String, color: Int) {
+    private fun setLink(text: String, colorRes: Int) {
         link.text = text
-        link.setTextColor(color)
+        link.setTextColor(getColor(colorRes))
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
@@ -215,5 +313,6 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_FOREGROUND = 1
         private const val REQ_BACKGROUND = 2
+        private const val HOLD_MS = 1_000L
     }
 }

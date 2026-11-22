@@ -5,12 +5,17 @@ Galaxy Watch app that streams vitals to the Arduino UNO Q board every 5 seconds:
 ```
 POST http://<BOARD_IP>:8000/vitals
 {"t": <epoch ms>, "hr": <bpm|null>, "spo2": <percent|null>, "spo2_t": <epoch ms|null>,
- "skin_temp_c": <float|null>, "source": "watch"}
+ "skin_temp_c": <float|null>, "ambient_c": <float|null>, "ibi_ms": [<ms>, ...] | null, "source": "watch"}
 ```
 
-- `hr` and `skin_temp_c` are current at `t`.
+- `hr`, `skin_temp_c` and `ambient_c` are current at `t`. `ambient_c` (air temperature around the
+  watch) is context only for the board.
+- `ibi_ms`: inter-beat intervals from Samsung's HR tracker received since the previous sample, only
+  those with IBI status 0 (normal). Null if none. With the screen off they arrive batched, so one
+  sample may carry more or fewer than 5 s worth.
+- `spo2_t`, `ambient_c` and `ibi_ms` are optional for the board (older builds omit them).
 - `spo2` is a spot measurement taken at `spo2_t`, which can be minutes before `t`. `spo2_t` is null
-  exactly when `spo2` is null. It is optional for the board (older builds omit it).
+  exactly when `spo2` is null.
 - A value that wasn't measured recently is sent as `null`. Nothing is estimated or repeated forever.
 
 ## Builds
@@ -68,8 +73,9 @@ Always pass `-s`: the UNO Q also shows up in `adb devices`.
 
 ## Board address
 
-The `real` build defaults to `10.247.37.180:8000` (the board on the hackathon Wi-Fi, dashboard at
-`http://10.247.37.180:8000/`). Watch and board must be on the same Wi-Fi, with client isolation off.
+The `real` build defaults to `10.136.49.240:8000` (the board on the S26ULTRA phone hotspot,
+dashboard at `http://10.136.49.240:8000/`). Watch and board must be on the same Wi-Fi, with client
+isolation off.
 Edit it on the watch (scroll down, numeric keypad, ✓ saves), or set it from the laptop:
 
 ```powershell

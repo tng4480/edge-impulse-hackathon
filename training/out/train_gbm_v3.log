@@ -1,0 +1,9 @@
+scanned 0
+scanned 10000
+scanned 20000
+scanned 30000
+scanned 40000
+train [83156 12869] val [9010 1407]
+C:\Users\tejas\Projects\edge impulse hackathon\.venv\Lib\site-packages\lightgbm\sklearn.py:1106: LGBMDeprecationWarning: The argument 'eval_set' is deprecated, use 'eval_X' and 'eval_y' instead.
+  eval_set = _validate_eval_set_Xy(eval_set=eval_set, eval_X=eval_X, eval_y=eval_y)
+val window AUC 0.706, trees 119

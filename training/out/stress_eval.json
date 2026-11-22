@@ -1,0 +1,178 @@
+{
+ "definition": "alerts in the 24 h strictly before onset (onset = first SepsisLabel + 6 h); false alerts = alert episodes per patient-day in non-sepsis patients; NEWS2 rule = 5+ or any single 3",
+ "label": "Simulated stressor on a recorded ICU case",
+ "threshold": 0.55,
+ "model": "Trees(training/out/model.json)",
+ "n_sepsis": 476,
+ "n_nonsepsis": 7422,
+ "limit": null,
+ "scenarios": [
+  {
+   "id": "baseline",
+   "title": "Baseline",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.775,
+    "false_alerts_per_patient_day": 0.91,
+    "nonsepsis_hours_in_alert": 0.222,
+    "median_first_alert_hours_before_onset": 20.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.761,
+    "false_alerts_per_patient_day": 1.61,
+    "nonsepsis_hours_in_alert": 0.16,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "Reference."
+  },
+  {
+   "id": "spo2_overread_2",
+   "title": "SpO2 over-read +2",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.796,
+    "false_alerts_per_patient_day": 0.97,
+    "nonsepsis_hours_in_alert": 0.233,
+    "median_first_alert_hours_before_onset": 20.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.733,
+    "false_alerts_per_patient_day": 1.41,
+    "nonsepsis_hours_in_alert": 0.14,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model +2 pts, NEWS2 -3 pts, so NEWS2 loses more; false alerts/day: model +0.06, NEWS2 -0.20; alarm time: model +1.1 pts, NEWS2 -2.0 pts."
+  },
+  {
+   "id": "spo2_overread_4",
+   "title": "SpO2 over-read +4",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.798,
+    "false_alerts_per_patient_day": 1.04,
+    "nonsepsis_hours_in_alert": 0.254,
+    "median_first_alert_hours_before_onset": 20.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.714,
+    "false_alerts_per_patient_day": 1.35,
+    "nonsepsis_hours_in_alert": 0.134,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model +2 pts, NEWS2 -5 pts, so NEWS2 loses more; false alerts/day: model +0.13, NEWS2 -0.26; alarm time: model +3.2 pts, NEWS2 -2.6 pts."
+  },
+  {
+   "id": "spo2_missing",
+   "title": "No SpO2",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.714,
+    "false_alerts_per_patient_day": 0.77,
+    "nonsepsis_hours_in_alert": 0.185,
+    "median_first_alert_hours_before_onset": 18.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.689,
+    "false_alerts_per_patient_day": 1.28,
+    "nonsepsis_hours_in_alert": 0.128,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model -6 pts, NEWS2 -7 pts, so NEWS2 loses more; false alerts/day: model -0.14, NEWS2 -0.33; alarm time: model -3.7 pts, NEWS2 -3.2 pts."
+  },
+  {
+   "id": "spo2_sparse",
+   "title": "SpO2 every 4 h",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.773,
+    "false_alerts_per_patient_day": 0.86,
+    "nonsepsis_hours_in_alert": 0.203,
+    "median_first_alert_hours_before_onset": 19.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.744,
+    "false_alerts_per_patient_day": 1.4,
+    "nonsepsis_hours_in_alert": 0.16,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model -0 pts, NEWS2 -2 pts, so NEWS2 loses more; false alerts/day: model -0.05, NEWS2 -0.21; alarm time: model -1.9 pts, NEWS2 +0.0 pts."
+  },
+  {
+   "id": "beta_blocker",
+   "title": "Beta-blocker (HR capped at 80)",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.668,
+    "false_alerts_per_patient_day": 0.67,
+    "nonsepsis_hours_in_alert": 0.167,
+    "median_first_alert_hours_before_onset": 19.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.727,
+    "false_alerts_per_patient_day": 1.51,
+    "nonsepsis_hours_in_alert": 0.145,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model -11 pts, NEWS2 -3 pts, so the model loses more; false alerts/day: model -0.24, NEWS2 -0.10; alarm time: model -5.5 pts, NEWS2 -1.5 pts."
+  },
+  {
+   "id": "walk_burst",
+   "title": "Walk burst (non-sepsis)",
+   "applies_to": [
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": null,
+    "false_alerts_per_patient_day": 1.11,
+    "nonsepsis_hours_in_alert": 0.254,
+    "median_first_alert_hours_before_onset": null
+   },
+   "news2": {
+    "flagged_before_onset": null,
+    "false_alerts_per_patient_day": 1.9,
+    "nonsepsis_hours_in_alert": 0.191,
+    "median_first_alert_hours_before_onset": null
+   },
+   "verdict": "false alerts/day: model +0.20, NEWS2 +0.29; alarm time: model +3.2 pts, NEWS2 +3.1 pts."
+  },
+  {
+   "id": "temp_missing",
+   "title": "No core temperature",
+   "applies_to": [
+    "sepsis",
+    "healthy"
+   ],
+   "model": {
+    "flagged_before_onset": 0.553,
+    "false_alerts_per_patient_day": 0.61,
+    "nonsepsis_hours_in_alert": 0.129,
+    "median_first_alert_hours_before_onset": 18.0
+   },
+   "news2": {
+    "flagged_before_onset": 0.731,
+    "false_alerts_per_patient_day": 1.58,
+    "nonsepsis_hours_in_alert": 0.152,
+    "median_first_alert_hours_before_onset": 17.0
+   },
+   "verdict": "catch rate: model -22 pts, NEWS2 -3 pts, so the model loses more; false alerts/day: model -0.30, NEWS2 -0.03; alarm time: model -9.3 pts, NEWS2 -0.8 pts."
+  }
+ ]
+}

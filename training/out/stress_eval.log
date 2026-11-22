@@ -1,0 +1,26 @@
+8033 test files, 14 processes, threshold 0.55
+500/8033 4s
+1000/8033 7s
+1500/8033 10s
+2000/8033 13s
+2500/8033 16s
+3000/8033 18s
+3500/8033 22s
+4000/8033 25s
+4500/8033 28s
+5000/8033 31s
+5500/8033 34s
+6000/8033 36s
+6500/8033 40s
+7000/8033 43s
+7500/8033 46s
+8000/8033 49s
+baseline {"flagged_before_onset": 0.775, "false_alerts_per_patient_day": 0.91, "nonsepsis_hours_in_alert": 0.222, "median_first_alert_hours_before_onset": 20.0} {"flagged_before_onset": 0.761, "false_alerts_per_patient_day": 1.61, "nonsepsis_hours_in_alert": 0.16, "median_first_alert_hours_before_onset": 17.0}
+spo2_overread_2 {"flagged_before_onset": 0.796, "false_alerts_per_patient_day": 0.97, "nonsepsis_hours_in_alert": 0.233, "median_first_alert_hours_before_onset": 20.0} {"flagged_before_onset": 0.733, "false_alerts_per_patient_day": 1.41, "nonsepsis_hours_in_alert": 0.14, "median_first_alert_hours_before_onset": 17.0}
+spo2_overread_4 {"flagged_before_onset": 0.798, "false_alerts_per_patient_day": 1.04, "nonsepsis_hours_in_alert": 0.254, "median_first_alert_hours_before_onset": 20.0} {"flagged_before_onset": 0.714, "false_alerts_per_patient_day": 1.35, "nonsepsis_hours_in_alert": 0.134, "median_first_alert_hours_before_onset": 17.0}
+spo2_missing {"flagged_before_onset": 0.714, "false_alerts_per_patient_day": 0.77, "nonsepsis_hours_in_alert": 0.185, "median_first_alert_hours_before_onset": 18.0} {"flagged_before_onset": 0.689, "false_alerts_per_patient_day": 1.28, "nonsepsis_hours_in_alert": 0.128, "median_first_alert_hours_before_onset": 17.0}
+spo2_sparse {"flagged_before_onset": 0.773, "false_alerts_per_patient_day": 0.86, "nonsepsis_hours_in_alert": 0.203, "median_first_alert_hours_before_onset": 19.0} {"flagged_before_onset": 0.744, "false_alerts_per_patient_day": 1.4, "nonsepsis_hours_in_alert": 0.16, "median_first_alert_hours_before_onset": 17.0}
+beta_blocker {"flagged_before_onset": 0.668, "false_alerts_per_patient_day": 0.67, "nonsepsis_hours_in_alert": 0.167, "median_first_alert_hours_before_onset": 19.0} {"flagged_before_onset": 0.727, "false_alerts_per_patient_day": 1.51, "nonsepsis_hours_in_alert": 0.145, "median_first_alert_hours_before_onset": 17.0}
+walk_burst {"flagged_before_onset": null, "false_alerts_per_patient_day": 1.11, "nonsepsis_hours_in_alert": 0.254, "median_first_alert_hours_before_onset": null} {"flagged_before_onset": null, "false_alerts_per_patient_day": 1.9, "nonsepsis_hours_in_alert": 0.191, "median_first_alert_hours_before_onset": null}
+temp_missing {"flagged_before_onset": 0.553, "false_alerts_per_patient_day": 0.61, "nonsepsis_hours_in_alert": 0.129, "median_first_alert_hours_before_onset": 18.0} {"flagged_before_onset": 0.731, "false_alerts_per_patient_day": 1.58, "nonsepsis_hours_in_alert": 0.152, "median_first_alert_hours_before_onset": 17.0}
+done in 50s

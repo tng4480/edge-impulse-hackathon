@@ -21,8 +21,8 @@ class Settings(context: Context) {
         private const val KEY_PORT = "port"
 
         // fake: 10.0.2.2 is the emulator's alias for the laptop running tools/test_server.py.
-        // real: the board's address on the hackathon Wi-Fi when this was built; editable on the watch.
-        val DEFAULT_HOST = if (BuildConfig.FLAVOR == "fake") "10.0.2.2" else "10.247.37.180"
+        // real: the board's address on the S26ULTRA phone hotspot when this was built; editable on the watch.
+        val DEFAULT_HOST = if (BuildConfig.FLAVOR == "fake") "10.0.2.2" else "10.136.49.240"
         const val DEFAULT_PORT = 8000
     }
 }

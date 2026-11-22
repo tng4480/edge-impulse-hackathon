@@ -13,7 +13,11 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 KEYS = {"t", "hr", "spo2", "skin_temp_c", "source"}
-OPTIONAL_KEYS = {"spo2_t"}  # epoch ms the SpO2 spot reading was taken; older builds omit it
+# Optional keys (older builds omit them):
+#   spo2_t    epoch ms the SpO2 spot reading was taken
+#   ambient_c ambient temperature around the watch, °C (context only)
+#   ibi_ms    valid (status 0) inter-beat intervals since the previous sample, ms
+OPTIONAL_KEYS = {"spo2_t", "ambient_c", "ibi_ms"}
 
 
 def is_int(v: object) -> bool:
@@ -44,9 +48,13 @@ def problems(body: object) -> list[str]:
         v = body.get(key)
         if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool)):
             errs.append(f"{key} must be a number or null")
-    v = body.get("skin_temp_c")
-    if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool)):
-        errs.append("skin_temp_c must be a number or null")
+    for key in ("skin_temp_c", "ambient_c"):
+        v = body.get(key)
+        if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool)):
+            errs.append(f"{key} must be a number or null")
+    ibi = body.get("ibi_ms")
+    if ibi is not None and (not isinstance(ibi, list) or not ibi or not all(is_int(x) and x > 0 for x in ibi)):
+        errs.append("ibi_ms must be a non-empty list of positive integers, or null")
     if body.get("source") != "watch":
         errs.append('source must be "watch"')
     return errs
@@ -74,7 +82,8 @@ class Handler(BaseHTTPRequestHandler):
             spo2_age = f" (taken {(body['t'] - body['spo2_t']) / 1000:.0f}s before t)"
         print(
             f"{now} {self.client_address[0]} hr={body['hr']} spo2={body['spo2']}{spo2_age} "
-            f"skin={body['skin_temp_c']} (sample age {lag_s:.1f}s)",
+            f"skin={body['skin_temp_c']} ambient={body.get('ambient_c')} "
+            f"ibi={len(body.get('ibi_ms') or [])} (sample age {lag_s:.1f}s)",
             flush=True,
         )
         self._reply(200, {"ok": True})

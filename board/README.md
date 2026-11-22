@@ -30,6 +30,7 @@ adb -s <board serial> shell "cd ~/ArduinoApps/sepsis-monitor && arduino-app-cli 
 | `POST /vibe`, `POST /ack` | test the Vibro; acknowledge an alert (mutes 5 minutes) |
 | `POST /replay/start` | `{"case": "p112060", "seconds_per_hour": 1.5}` replays a recorded held-out ICU patient through the model and NEWS2; drives the alert while active |
 | `POST /replay/stop`, `GET /api/replay` | stop it; replay state (vitals, risk, NEWS2, timeline, hours to onset, case list) |
+| `POST /escalation` | `{"seconds": 120}` how long an alert may go unacknowledged before the carer (SBAR) view opens (5 to 3600; default 120). `GET /api/state` then has `escalation.active` and `escalation.sbar` |
 | `GET /api/imu/raw?seconds=N` | last N seconds (max 60) of raw accelerometer samples `[[x, y, z] in g]` at 25 Hz |
 
 The model (`python/model_runner.py`, `model/sepsis.eim`) works on hourly trends: live mode needs 8 hours of history before it answers, replay shows it working on a recorded patient. `model/sepsis.eim` is gitignored, so push it with adb along with the rest of the app.

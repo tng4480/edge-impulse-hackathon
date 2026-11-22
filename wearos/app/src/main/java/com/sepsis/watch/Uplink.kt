@@ -85,6 +85,9 @@ class Uplink(context: Context) {
         }
     }
 
+    /** One POST outside the sample queue (the "I feel unwell" check-in). Call off the main thread. */
+    fun postOnce(url: String, body: String): Int? = post(url, body)
+
     /** HTTP status, or null if the board could not be reached. */
     private fun post(url: String, body: String): Int? {
         val target = URL(url)

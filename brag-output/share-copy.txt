@@ -1,0 +1,1 @@
+36% of sepsis cases are detected late. We built an early-warning monitor that runs on a watch people already wear and a small board at home, with no cloud. On held-out ICU data it flagged 78% of sepsis patients before onset, a median 20 hours ahead. Retrospective, not yet validated at home, and decision support rather than a diagnosis.
