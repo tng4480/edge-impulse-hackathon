@@ -50,9 +50,11 @@ TREND_SCALE = {"HR": 20.0, "O2Sat": 3.0, "Temp": 1.0, "Resp": 5.0}
 TREND_NAME = {"HR": ("Heart rate", "bpm"), "O2Sat": ("SpO2", "%"), "Temp": ("Temperature", "°C"),
               "Resp": ("Respiratory rate", "/min")}
 SPO2_FRESH_S = 600      # SpO2 is a spot reading; keep it 10 minutes
-RR_STABLE_N = 3         # respiratory rate counts only after this many agreeing readings (5 s apart)
-RR_STABLE_SPREAD = 3.0  # ... that all lie within this many breaths/min of each other
-RR_FRESH_S = 20
+RR_STABLE_N = 2         # respiratory rate counts after this many agreeing readings (2 s apart)
+RR_STABLE_SPREAD = 4.0  # ... that all lie within this many breaths/min of each other
+RR_EVERY_S = 2          # re-estimate respiratory rate every 2 s
+RR_FAIL_CLEAR = 3       # consecutive misses before clearing the settling history
+RR_FRESH_S = 30
 OVERRIDE_TTL_S = 600
 ALERT_SCORE = 5         # NEWS2 "urgent response" threshold
 ALERT_TICKS = 2         # consecutive 1 s ticks above threshold before alerting
@@ -65,7 +67,9 @@ accel = deque(maxlen=int(60 * FS))  # (x, y, z) in g, last 60 s (RR uses the las
 state = {
     "watch": {"t": None, "hr": None, "spo2": None, "spo2_t": None, "skin_temp_c": None, "skin_t": None,
               "rx": None, "count": 0},
-    "rr_hist": deque(maxlen=RR_STABLE_N),
+    "rr_hist": deque(maxlen=3),
+    "rr_misses": 0,
+    "rr_last_eval": 0.0,
     "skin_hist": deque(maxlen=1500),    # (epoch s, skin C): about a reading a minute, ~24 h
     "escalate_after_s": ESCALATE_AFTER_S,
     "override": {},     # name -> {"v": float, "until": epoch s}
@@ -426,22 +430,37 @@ def tick():
     else:
         state["rigor"] = {**state["rigor"], "shaking": False, "reason": "chest sensor stopped"}
 
-    if int(now) % 5 == 0:
-        with LOCK:
-            xs, ys, zs = ([a[i] for a in accel] for i in range(3))
-        est = estimate_rr(xs, ys, zs)
+    if now - state["rr_last_eval"] >= RR_EVERY_S:
+        state["rr_last_eval"] = now
+        if faults.active("imu_freeze"):
+            est = {"rr": None, "reason": "chest sensor stopped", "motion_g": None, "amplitude_g": None, "strength": None}
+        else:
+            with LOCK:
+                xs, ys, zs = ([a[i] for a in accel] for i in range(3))
+            est = estimate_rr(xs, ys, zs)
         with LOCK:
             hist = state["rr_hist"]
             if est["rr"] is None:
-                hist.clear()
+                state["rr_misses"] += 1
+                if state["rr_misses"] >= RR_FAIL_CLEAR:
+                    hist.clear()
             else:
+                state["rr_misses"] = 0
                 hist.append(est["rr"])
-            stable = len(hist) == RR_STABLE_N and max(hist) - min(hist) <= RR_STABLE_SPREAD
+            recent = list(hist)[-RR_STABLE_N:]
+            stable = len(recent) >= RR_STABLE_N and max(recent) - min(recent) <= RR_STABLE_SPREAD
             if est["rr"] is not None and not stable:
-                est = {**est, "rr": None, "reason": f"settling ({len(hist)}/{RR_STABLE_N})"}
-            elif stable:
+                est = {**est, "rr": None, "reason": f"settling ({len(recent)}/{RR_STABLE_N})"}
+            elif stable and est["rr"] is not None:
                 est = {**est, "rr": round(sorted(hist)[len(hist) // 2], 1)}
-            state["rr"] = {**est, "at": now if est["rr"] is not None else state["rr"].get("at")}
+            prev = state["rr"]
+            if est["rr"] is not None:
+                state["rr"] = {**est, "at": now}
+            elif prev.get("rr") is not None and prev.get("at") and now - prev["at"] <= RR_FRESH_S:
+                # Hold the last good reading during brief movement/glitches; age_info marks it stale after STALE_S["rr"].
+                state["rr"] = {**est, "rr": prev["rr"], "at": prev["at"]}
+            else:
+                state["rr"] = {**est, "at": prev.get("at")}
 
     snap = snapshot()
     if int(now) % MODEL_EVERY_S == 0:

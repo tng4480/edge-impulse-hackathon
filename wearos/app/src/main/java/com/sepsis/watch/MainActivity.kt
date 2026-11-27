@@ -21,6 +21,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.Locale
@@ -120,6 +121,13 @@ class MainActivity : Activity() {
         }
         host.setOnEditorActionListener(saveOnDone)
         port.setOnEditorActionListener(saveOnDone)
+
+        host.clearFocus()
+        port.clearFocus()
+        findViewById<ScrollView>(R.id.scroll).apply {
+            requestFocus()
+            post { scrollTo(0, 0) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

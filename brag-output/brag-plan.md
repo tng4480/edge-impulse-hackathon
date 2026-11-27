@@ -1,23 +1,23 @@
-# Launch video plan: Sepsis monitor
+# Sepsis Watch launch video
 
-**Angle.** Sepsis is found late, and late is expensive. A watch people already wear, plus a small board at home, can raise the alarm earlier without adding a routine. Tone: polished (restrained, long holds, soft fades). Format: landscape 1920x1080, 30 fps, 26.25 s.
+**Angle.** Sepsis is found late, and late is expensive. A watch people already wear, plus a small board at home, can raise an alert. Format is landscape 1920 × 1080 at 30 fps, about 29 seconds.
 
 **Hook.** "36% of sepsis cases are detected late." The number counts up in the first second.
 
-**Music.** 96 BPM (one beat = 0.625 s), 42 beats = 26.25 s. Every cut, reveal chime, thud and arpeggio note sits on that grid. A heartbeat pulse (lub-dub) runs under the problem scenes and turns into a soft kick when the product arrives. Key: A minor, progression Am F C G.
+**Music.** The original 96 BPM score repeats one bar under the extended product scene. A heartbeat pulse runs under the problem scenes and turns into a soft kick when the product arrives.
 
-**Look.** Problem scenes on warm paper (#f6f3ec, ink #1b1e19, accent #c4472a). Product scenes on the Pine dark theme (#101815, text #E2ECE5, mint #9CD9B1). Instrument Serif numbers, Geist text, Geist Mono labels. These are the board pages' own tokens, from `ui.css`.
+**Look.** The first two scenes use the original bright red (#FF4D2E). The video then transitions to the app's Pine dark theme (#101815 background, #E2ECE5 text and #9CD9B1 mint). Type is Archivo, Inter Tight and JetBrains Mono.
 
 ## Storyboard (beats from the start)
 
 | # | Beats | Time | Theme | Content |
 |---|---|---|---|---|
-| 1 | 0-6 | 0.00-3.75 | paper | **36%** of sepsis cases are detected late. |
-| 2 | 6-14 | 3.75-8.75 | paper | **£830m** NHS spend on hospital care for sepsis. Then **+4%** higher odds of death for each hour antibiotics wait (Seymour et al., NEJM 2017). |
+| 1 | 0-6 | 0.00-3.75 | Red | **36%** of sepsis cases are detected late. |
+| 2 | 6-14 | 3.75-8.75 | Red | **£830m** NHS spend on hospital care for sepsis. Then **+4%** higher odds of death for each hour antibiotics wait (Seymour et al., NEJM 2017). |
 | 3 | 14-22 | 8.75-13.75 | pine | **6x** more likely to get community-acquired sepsis with stage 5 kidney disease. "We watch them first." |
-| 4 | 22-29 | 13.75-18.125 | pine | The product in use. Real watch app and real dashboard. A watch they already wear; chest sensor adds breathing; room sensor adds temperature and light; scored on the board, no cloud. |
-| 5 | 29-37 | 18.125-23.125 | pine | **78%** flagged before onset, **20 h** median warning, **43%** fewer false alerts than NEWS2 at the same catch rate. Footer: held-out ICU patients, not yet validated at home. |
-| 6 | 37-42 | 23.125-26.25 | pine | Sepsis monitor. Early warning at home. Decision support, not a diagnosis. Edge Impulse, Arduino UNO Q, Galaxy Watch. |
+| 4 | 22-33 | 13.75-20.625 | pine | The connected watch and its sensors feed the board. The dashboard shows a deterioration alert during a recorded ICU replay. Then a separate simulated “I feel unwell” check-in appears in the nurse queue and a nurse accepts it. |
+| 5 | 33-41 | 20.625-25.625 | pine | **78%** flagged before onset, **20 h** median warning, **43%** fewer false alerts than NEWS2 at the same catch rate. Footer: held-out ICU patients, not yet validated at home. |
+| 6 | 41-46 | 25.625-28.75 | pine | Sepsis Watch. Early warning at home. Decision support, not a diagnosis. Edge Impulse, Arduino UNO Q, Galaxy Watch. |
 
 ## Sources for each number
 

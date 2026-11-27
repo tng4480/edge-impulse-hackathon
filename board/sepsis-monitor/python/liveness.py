@@ -17,7 +17,7 @@ import time
 from collections import deque
 
 # A reading turns grey after STALE_S; the board stops using it after the hold limits in main.py.
-STALE_S = {"hr": 12, "rr": 12, "spo2": 300, "skin": 90, "hrv": 120}
+STALE_S = {"hr": 12, "rr": 20, "spo2": 300, "skin": 90, "hrv": 120}
 WATCH_OK_S = 15          # last watch packet newer than this: link "connected"
 WATCH_LOST_S = 60        # older than this: "disconnected"; in between "slow"
 ENGINE_OK_S = 15         # last model score newer than this: engine "running"

@@ -174,7 +174,7 @@
 </main>
 
 <script>
-const srcText = s => s ? ({watch:'from watch', imu:'from chest IMU', override:'manual override'}[s] || s) : 'no data';
+const srcText = s => s ? ({watch:'from watch', imu:'from chest IMU', override:''}[s] ?? s) : 'no data';
 
 for (const k of ['hr','spo2','temp','rr']) {
   const el = $('o_'+k); el.oninput = () => $('o_'+k+'_v').textContent = el.value; el.oninput();
@@ -349,7 +349,7 @@ async function refresh() {
       if (k === 'temp') {
         const ov = s.vitals.temp.src === 'override';
         vv = ov ? s.vitals.temp : s.vitals.skin;
-        $('temp_label').textContent = ov ? 'Core temperature (manual override)' : 'Skin temperature (wrist)';
+        $('temp_label').textContent = ov ? 'Core temperature' : 'Skin temperature (wrist)';
       }
       $(k).textContent = fmt(vv.v, d);
       box.classList.toggle('stale', !!vv.stale);   // reading has aged
